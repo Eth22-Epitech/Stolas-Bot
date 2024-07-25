@@ -23,7 +23,6 @@
     "@giphy/js-fetch-api": "^5.6.0",
     "axios": "^1.7.2",
     "booba": "^0.0.19",
-    "canvas": "^2.11.2",
     "discord.js": "^14.10.2",
     "dotenv": "^16.0.3",
     "fetch": "^1.1.0",
