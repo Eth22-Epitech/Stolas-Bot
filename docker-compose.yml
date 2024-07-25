@@ -1,0 +1,8 @@
+services:
+  bot:
+    build: .
+    volumes:
+      - ./logs/stolas.log:/stolas_bot/logs/stolas.log
+
+volumes:
+  logs:

@@ -20,9 +20,9 @@
   },
   "homepage": "https://github.com/Eth22-Epitech/stolas_bot_js#readme",
   "dependencies": {
-    "@giphy/js-fetch-api": "^4.9.0",
-    "axios": "^1.4.0",
-    "booba": "^0.0.16",
+    "@giphy/js-fetch-api": "^5.6.0",
+    "axios": "^1.7.2",
+    "booba": "^0.0.19",
     "canvas": "^2.11.2",
     "discord.js": "^14.10.2",
     "dotenv": "^16.0.3",
@@ -34,7 +34,7 @@
     "react": "^18.2.0",
     "seedrandom": "^3.0.5",
     "sequelize": "^6.31.1",
-    "sharp": "^0.32.1",
+    "sharp": "^0.33.4",
     "sqlite3": "^5.1.6",
     "tenor": "^1.0.1",
     "weather": "^1.0.4",
@@ -42,6 +42,6 @@
     "yiffy": "^2.3.2"
   },
   "devDependencies": {
-    "eslint": "^8.39.0"
+    "eslint": "^9.7.0"
   }
 }
