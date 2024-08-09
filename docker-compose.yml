@@ -4,7 +4,7 @@ services:
       context: ./app
       dockerfile: Dockerfile
     command: npm run start
-#    restart: always
+    restart: always
     volumes:
       - ./logs:/app/logs
       - ./config.json:/app/config.json
