@@ -43,7 +43,7 @@ const logger = winston.createLogger({
     format: winston.format.combine(
         winston.format.padLevels({ levels: logLevels }),
         winston.format.timestamp(),
-        winston.format.printf(info => `${info.timestamp} ${info.level}:${info.message}`),
+        winston.format.printf(info => `- ${info.level}:${info.message}`),
     ),
     level: 'debug',
 });

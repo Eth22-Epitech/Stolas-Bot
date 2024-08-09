@@ -1,8 +1,13 @@
 services:
-  bot:
-    build: .
+  src:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    command: npm run start
+#    restart: always
     volumes:
-      - ./logs:/stolas_bot/logs
+      - ./logs:/app/logs
+      - ./config.json:/app/config.json
 
 volumes:
-  logs:
+    logs:
