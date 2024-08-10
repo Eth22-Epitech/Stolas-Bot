@@ -19,7 +19,7 @@ module.exports = {
                 .setDescription('(ADMIN) Purge missing files entries from database'))
         .addSubcommand(subcommand =>
             subcommand
-                .setName('purge_tag')
+                .setName('purge_tags')
                 .setDescription('(ADMIN) Purge unassigned tags from database'))
         .addSubcommand(subcommand =>
             subcommand
@@ -143,6 +143,132 @@ module.exports = {
             } catch (error) {
                 logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase purge_entries' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
                 return interaction.reply({ content: `Error while purging database's entries: ${error.message}`, ephemeral: true });
+            }
+        }
+
+        // Purge Tag
+        else if (interaction.options.getSubcommand() === 'purge_tags') {
+            if (!admin_users.includes(interaction.user.id)) {
+                logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase purge_tags' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT ADMIN`);
+                return interaction.reply({content: `You are not an Admin of Stolas Bot.`, ephemeral: true});
+            }
+
+            const command_url = `${henbase_url}/purgeDb/tag`;
+
+            try {
+                const response = await fetch(command_url, {
+                    method: 'POST',
+                    headers: {
+                        'accept': 'application/json',
+                        'admin-key': henbase_admin_key,
+                    },
+                });
+
+                if (response.ok) {
+                    logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase purge_tags' in '${interaction.guild.name} #${interaction.channel.name}' issued => Success`);
+                    return interaction.reply({ content: `Database's unused tags purged successfully.`, ephemeral: true });
+                } else {
+                    logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase purge_tags' in '${interaction.guild.name} #${interaction.channel.name}' issued => Response Not OK`);
+                    return interaction.reply({ content: `Failed to purge database's unused tags: ${response.statusText}`, ephemeral: true });
+                }
+            } catch (error) {
+                logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase purge_tags' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
+                return interaction.reply({ content: `Error while purging database's unused tags: ${error.message}`, ephemeral: true });
+            }
+        }
+
+        // Purge Temp
+        else if (interaction.options.getSubcommand() === 'purge_tmp') {
+            if (!admin_users.includes(interaction.user.id)) {
+                logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase purge_tmp' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT ADMIN`);
+                return interaction.reply({content: `You are not an Admin of Stolas Bot.`, ephemeral: true});
+            }
+
+            const command_url = `${henbase_url}/purgeDb/tmp`;
+
+            try {
+                const response = await fetch(command_url, {
+                    method: 'POST',
+                    headers: {
+                        'accept': 'application/json',
+                        'admin-key': henbase_admin_key,
+                    },
+                });
+
+                if (response.ok) {
+                    logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase purge_tmp' in '${interaction.guild.name} #${interaction.channel.name}' issued => Success`);
+                    return interaction.reply({ content: `Local temporary files deleted successfully.`, ephemeral: true });
+                } else {
+                    logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase purge_tmp' in '${interaction.guild.name} #${interaction.channel.name}' issued => Response Not OK`);
+                    return interaction.reply({ content: `Failed to delete local temporary file: ${response.statusText}`, ephemeral: true });
+                }
+            } catch (error) {
+                logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase purge_tmp' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
+                return interaction.reply({ content: `Error while deleting local temporary file: ${error.message}`, ephemeral: true });
+            }
+        }
+
+        // Add Tag
+        else if (interaction.options.getSubcommand() === 'add_tag') {
+            const tag = interaction.options.getString('tag', true);
+            if (!admin_users.includes(interaction.user.id)) {
+                logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase add_tag ${tag}' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT ADMIN`);
+                return interaction.reply({content: `You are not an Admin of Stolas Bot.`, ephemeral: true});
+            }
+
+            const command_url = `${henbase_url}/addTag?tag=${encodeURIComponent(tag)}`;
+
+            try {
+                const response = await fetch(command_url, {
+                    method: 'POST',
+                    headers: {
+                        'accept': 'application/json',
+                        'admin-key': henbase_admin_key,
+                    },
+                });
+
+                if (response.ok) {
+                    logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase add_tag ${tag}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Success`);
+                    return interaction.reply({ content: `Added tag \`${tag}\` successfully.`, ephemeral: true });
+                } else {
+                    logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase add_tag ${tag}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Response Not OK`);
+                    return interaction.reply({ content: `Failed to add tag \`${tag}\`.: ${response.statusText}`, ephemeral: true });
+                }
+            } catch (error) {
+                logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase add_tag ${tag}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
+                return interaction.reply({ content: `Error while adding tag \`${tag}\`.: ${error.message}`, ephemeral: true });
+            }
+        }
+
+        // Remove Tag
+        else if (interaction.options.getSubcommand() === 'remove_tag') {
+            const tag = interaction.options.getString('tag', true);
+            if (!admin_users.includes(interaction.user.id)) {
+                logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase remove_tag ${tag}' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT ADMIN`);
+                return interaction.reply({content: `You are not an Admin of Stolas Bot.`, ephemeral: true});
+            }
+
+            const command_url = `${henbase_url}/removeTag?tag=${encodeURIComponent(tag)}`;
+
+            try {
+                const response = await fetch(command_url, {
+                    method: 'POST',
+                    headers: {
+                        'accept': 'application/json',
+                        'admin-key': henbase_admin_key,
+                    },
+                });
+
+                if (response.ok) {
+                    logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase remove_tag ${tag}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Success`);
+                    return interaction.reply({ content: `Removed tag \`${tag}\` successfully.`, ephemeral: true });
+                } else {
+                    logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase remove_tag ${tag}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Response Not OK`);
+                    return interaction.reply({ content: `Failed to remove tag \`${tag}\`.: ${response.statusText}`, ephemeral: true });
+                }
+            } catch (error) {
+                logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase remove_tag ${tag}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
+                return interaction.reply({ content: `Error while removing tag \`${tag}\`.: ${error.message}`, ephemeral: true });
             }
         }
 
