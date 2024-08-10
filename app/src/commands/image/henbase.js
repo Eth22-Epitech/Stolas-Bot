@@ -15,7 +15,7 @@ module.exports = {
                 .setDescription('(ADMIN) Call method to create database file'))
         .addSubcommand(subcommand =>
             subcommand
-                .setName('purge_entry')
+                .setName('purge_entries')
                 .setDescription('(ADMIN) Purge missing files entries from database'))
         .addSubcommand(subcommand =>
             subcommand
@@ -84,6 +84,7 @@ module.exports = {
     async execute(interaction) {
         const now = moment().format('MM/DD/YYYY HH:mm:ss');
 
+        // Create Database
         if (interaction.options.getSubcommand() === 'create_database') {
             if (!admin_users.includes(interaction.user.id)) {
                 logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase create_database' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT ADMIN`);
@@ -102,15 +103,50 @@ module.exports = {
                 });
 
                 if (response.ok) {
+                    logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase create_database' in '${interaction.guild.name} #${interaction.channel.name}' issued => Success`);
                     return interaction.reply({ content: 'Database created successfully.', ephemeral: true });
                 } else {
+                    logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase create_database' in '${interaction.guild.name} #${interaction.channel.name}' issued => Response Not OK`);
                     return interaction.reply({ content: `Failed to create database: ${response.statusText}`, ephemeral: true });
                 }
             } catch (error) {
-                logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase create_database' issued => Error: ${error.message}`);
+                logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase create_database' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
                 return interaction.reply({ content: `Error while creating database: ${error.message}`, ephemeral: true });
             }
-        } else {
+        }
+
+        // Purge Entry
+        else if (interaction.options.getSubcommand() === 'purge_entries') {
+            if (!admin_users.includes(interaction.user.id)) {
+                logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase purge_entries' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT ADMIN`);
+                return interaction.reply({content: `You are not an Admin of Stolas Bot.`, ephemeral: true});
+            }
+
+            const command_url = `${henbase_url}/purgeDb/entry`;
+
+            try {
+                const response = await fetch(command_url, {
+                    method: 'POST',
+                    headers: {
+                        'accept': 'application/json',
+                        'admin-key': henbase_admin_key,
+                    },
+                });
+
+                if (response.ok) {
+                    logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase purge_entries' in '${interaction.guild.name} #${interaction.channel.name}' issued => Success`);
+                    return interaction.reply({ content: `Database's entries purged successfully.`, ephemeral: true });
+                } else {
+                    logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase purge_entries' in '${interaction.guild.name} #${interaction.channel.name}' issued => Response Not OK`);
+                    return interaction.reply({ content: `Failed to purge database's entries: ${response.statusText}`, ephemeral: true });
+                }
+            } catch (error) {
+                logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase purge_entries' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
+                return interaction.reply({ content: `Error while purging database's entries: ${error.message}`, ephemeral: true });
+            }
+        }
+
+        else {
             return interaction.reply({content: `Invalid subcommand`, ephemeral: true});
         }
     },
