@@ -1,0 +1,20 @@
+{
+	"clientId": "ID",
+	"guildID": "ID",
+	"token": "Token",
+	"tenor_key": "Key",
+	"giphy_key": "Key",
+	"nekomoe_key": "Key",
+	"osu_key": "Key",
+
+	"Eth22ID": "ID",
+	"ShiruID": "ID",
+	"TiennID": "ID",
+
+	"trusted_users": ["ID", "ID", "ID"],
+	"admin_users": ["ID"],
+
+	"henbase_url": "Url",
+	"henbase_key": "Key",
+	"henbase_admin_key": "Key"
+}
