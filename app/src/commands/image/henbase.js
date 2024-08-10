@@ -1,6 +1,6 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const logger = require('../../logger.js');
-const { henbase_url, henbase_admin_key, trusted_users, admin_users } = require('../../config.json');
+const { henbase_url, henbase_key, henbase_admin_key, admin_users } = require('../../config.json');
 const moment = require('moment');
 
 module.exports = {
@@ -211,6 +211,7 @@ module.exports = {
         // Add Tag
         else if (interaction.options.getSubcommand() === 'add_tag') {
             const tag = interaction.options.getString('tag', true);
+
             if (!admin_users.includes(interaction.user.id)) {
                 logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase add_tag ${tag}' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT ADMIN`);
                 return interaction.reply({content: `You are not an Admin of Stolas Bot.`, ephemeral: true});
@@ -243,6 +244,7 @@ module.exports = {
         // Remove Tag
         else if (interaction.options.getSubcommand() === 'remove_tag') {
             const tag = interaction.options.getString('tag', true);
+
             if (!admin_users.includes(interaction.user.id)) {
                 logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase remove_tag ${tag}' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT ADMIN`);
                 return interaction.reply({content: `You are not an Admin of Stolas Bot.`, ephemeral: true});
@@ -269,6 +271,145 @@ module.exports = {
             } catch (error) {
                 logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase remove_tag ${tag}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
                 return interaction.reply({ content: `Error while removing tag \`${tag}\`.: ${error.message}`, ephemeral: true });
+            }
+        }
+
+        // Edit Tag
+        else if (interaction.options.getSubcommand() === 'edit_tag') {
+            const old_tag = interaction.options.getString('old_tag', true);
+            const new_tag = interaction.options.getString('new_tag', true);
+
+            if (!admin_users.includes(interaction.user.id)) {
+                logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase edit_tag ${old_tag} ${new_tag}' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT ADMIN`);
+                return interaction.reply({content: `You are not an Admin of Stolas Bot.`, ephemeral: true});
+            }
+
+            const command_url = `${henbase_url}/editTag?oldTag=${encodeURIComponent(old_tag)}&newTag=${encodeURIComponent(new_tag)}`;
+
+            try {
+                const response = await fetch(command_url, {
+                    method: 'POST',
+                    headers: {
+                        'accept': 'application/json',
+                        'admin-key': henbase_admin_key,
+                    },
+                });
+
+                if (response.ok) {
+                    logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase edit_tag ${old_tag} ${new_tag}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Success`);
+                    return interaction.reply({ content: `Edited tag \`${old_tag}\` to \`${new_tag}\` successfully.`, ephemeral: true });
+                } else {
+                    logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase edit_tag ${old_tag} ${new_tag}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Response Not OK`);
+                    return interaction.reply({ content: `Failed to edit tag \`${old_tag}\` to \`${new_tag}\`.: ${response.statusText}`, ephemeral: true });
+                }
+            } catch (error) {
+                logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase edit_tag ${old_tag} ${new_tag}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
+                return interaction.reply({ content: `Error while editing tag \`${old_tag}\` to \`${new_tag}\`.: ${error.message}`, ephemeral: true });
+            }
+        }
+
+        // List all Tags
+        else if (interaction.options.getSubcommand() === 'list_tags') {
+
+            if (!admin_users.includes(interaction.user.id)) {
+                logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase list_tags' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT ADMIN`);
+                return interaction.reply({content: `You are not an Admin of Stolas Bot.`, ephemeral: true});
+            }
+
+            const command_url = `${henbase_url}/listTags`;
+
+            try {
+                const response = await fetch(command_url, {
+                    method: 'GET',
+                    headers: {
+                        'accept': 'application/json',
+                        'api-key': henbase_key,
+                    },
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const tags = data.tags;
+                    const tagsPerPage = 10;
+                    const totalPages = Math.ceil(tags.length / tagsPerPage);
+
+                    const generateEmbed = (page) => {
+                        const start = (page - 1) * tagsPerPage;
+                        const end = start + tagsPerPage;
+                        const pageTags = tags.slice(start, end).map(tag => tag.name); // Extract tag names
+
+                        const embed = new EmbedBuilder()
+                            .setColor('#6b048a')
+                            .setAuthor({name: 'Stolas Bot by Eth22', iconURL: interaction.client.user.displayAvatarURL(), url: 'https://eth22.fr'})
+                            .setTitle('Tags List')
+                            .setDescription(pageTags.join('\n'))
+                            .setFooter({text: `${now}`, iconURL: interaction.client.user.displayAvatarURL()})
+                            .addFields({ name: `Page ${page} of ${totalPages}`, value: '\u200B', inline: true });
+
+                        return embed;
+                    };
+
+                    const row = new ActionRowBuilder()
+                        .addComponents(
+                            new ButtonBuilder()
+                                .setCustomId('previous')
+                                .setLabel('Previous')
+                                .setStyle(ButtonStyle.Primary)
+                                .setDisabled(true),
+                            new ButtonBuilder()
+                                .setCustomId('next')
+                                .setLabel('Next')
+                                .setStyle(ButtonStyle.Primary)
+                                .setDisabled(totalPages <= 1)
+                        );
+
+                    logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase list_tags' in '${interaction.guild.name} #${interaction.channel.name}' issued => Page 1`);
+                    await interaction.reply({ embeds: [generateEmbed(1)], components: [row]});
+
+                    const filter = i => i.customId === 'previous' || i.customId === 'next';
+                    const collector = interaction.channel.createMessageComponentCollector({ filter, time: 60000 });
+
+                    let currentPage = 1;
+
+                    collector.on('collect', async i => {
+                        if (i.customId === 'previous') {
+                            currentPage--;
+                        } else if (i.customId === 'next') {
+                            currentPage++;
+                        }
+
+                        logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase list_tags' in '${interaction.guild.name} #${interaction.channel.name}' issued => Page ${currentPage}`);
+                        await i.update({
+                            embeds: [generateEmbed(currentPage)],
+                            components: [
+                                new ActionRowBuilder()
+                                    .addComponents(
+                                        new ButtonBuilder()
+                                            .setCustomId('previous')
+                                            .setLabel('Previous')
+                                            .setStyle(ButtonStyle.Primary)
+                                            .setDisabled(currentPage === 1),
+                                        new ButtonBuilder()
+                                            .setCustomId('next')
+                                            .setLabel('Next')
+                                            .setStyle(ButtonStyle.Primary)
+                                            .setDisabled(currentPage === totalPages)
+                                    )
+                            ]
+                        });
+                    });
+
+                    collector.on('end', collected => {
+                        interaction.editReply({ components: [] });
+                    });
+                } else {
+                    const errorText = await response.text();
+                    logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase list_tags' in '${interaction.guild.name} #${interaction.channel.name}' issued => Response Not OK: ${errorText}`);
+                    return interaction.reply({ content: `Failed to list all tags: ${response.statusText}`, ephemeral: true });
+                }
+            } catch (error) {
+                logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase list_tags' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
+                return interaction.reply({ content: `Error while listing all tags: ${error.message}`, ephemeral: true });
             }
         }
 
