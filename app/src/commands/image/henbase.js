@@ -1,10 +1,24 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
+const { bold, italic, strikethrough, underscore, spoiler, quote, blockQuote, inlineCode, codeBlock } = require('discord.js');
 const logger = require('../../logger.js');
 const { henbase_url, henbase_key, henbase_admin_key, trusted_users, admin_users } = require('../../config.json');
 const moment = require('moment');
 
+// Function to convert size to appropriate unit
+function formatSize(size) {
+    const units = ['bytes', 'KB', 'MB', 'GB', 'TB'];
+    let unitIndex = 0;
+
+    while (size >= 1000 && unitIndex < units.length - 1) {
+        size /= 1000;
+        unitIndex++;
+    }
+
+    return `${size.toFixed(2)} ${units[unitIndex]}`;
+}
+
 module.exports = {
-    cooldown: 5,
+    cooldown: 2,
     data: new SlashCommandBuilder()
         .setName('henbase')
         .setDescription('(ADMIN / Trusted Users) Command to handle and interact with the Henbase API')
@@ -457,6 +471,90 @@ module.exports = {
             } catch (error) {
                 logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase add_entry ${name}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
                 return interaction.reply({ content: `Error while adding entry \`${name}\`.: ${error.message}`, ephemeral: true });
+            }
+        }
+
+        // Get Entry
+        else if (interaction.options.getSubcommand() === 'get_entry') {
+            const entryId = interaction.options.getInteger('id', true);
+
+            if (!trusted_users.includes(interaction.user.id)) {
+                logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase get_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT Trusted User`);
+                return interaction.reply({content: `You are not an Admin of Stolas Bot.`, ephemeral: true});
+            }
+
+            const command_url = `${henbase_url}/getEntry?entryId=${entryId}`;
+            const content_url = `${henbase_url}/content/${entryId}`;
+
+            try {
+                const response = await fetch(command_url, {
+                    method: 'GET',
+                    headers: {
+                        'accept': 'application/json',
+                        'api-key': henbase_key,
+                    },
+                });
+
+                if (response.ok) {
+                    const responseData = await response.json();
+                    const entryData = responseData.entry;
+
+                    // Fetch the entry content
+                    const contentResponse = await fetch(content_url, {
+                        method: 'GET',
+                        headers: {
+                            'api-key': henbase_key,
+                        },
+                    });
+
+                    let attachment;
+                    if (contentResponse.ok) {
+                        const buffer = await contentResponse.arrayBuffer();
+                        const contentType = contentResponse.headers.get('content-type');
+
+                        if (entryData.format === 'image') {
+                            attachment = new AttachmentBuilder(Buffer.from(buffer), {name: 'entry_image.png'});
+                        } else if (entryData.format === 'video') {
+                            attachment = new AttachmentBuilder(Buffer.from(buffer), {name: 'entry_video.mp4'});
+                        } else if (entryData.format === 'gif') {
+                            attachment = new AttachmentBuilder(Buffer.from(buffer), {name: 'entry_image.gif'});
+                        }
+                    } else {
+                        logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase get_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Content Response Not OK`);
+                    }
+
+                    // Calculate entry's size with correct unit
+                    let size = formatSize(entryData.size);
+
+                    const embed = new EmbedBuilder()
+                        .setColor('#6b048a')
+                        .setAuthor({name: 'Stolas Bot by Eth22', iconURL: interaction.client.user.displayAvatarURL(), url: 'https://eth22.fr'})
+                        .setTitle(`${underscore(`Henbase Entry \`${entryData.id}\`:`)}`)
+                        .addFields(
+                            { name: `Name`, value: `${entryData.name}` },
+                            { name: 'Tags', value: `\`${entryData.tags.join(', ')}\`` || 'None' },
+                            { name: 'Format & Extension', value: `${entryData.format} > \`.${entryData.extension}\`` },
+                            { name: 'Size', value: `\`${size}\``, inline: true },
+                        )
+                        .setFooter({text: `${now}`, iconURL: interaction.client.user.displayAvatarURL()});
+
+                    if (attachment) {
+                        if (entryData.format === 'image') {
+                            embed.setImage('attachment://entry_image.png');
+                        }  else if (entryData.format === 'gif') {
+                            embed.setImage('attachment://entry_image.gif');
+                        }
+                    }
+
+                    logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase get_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Success`);
+                    return interaction.reply({ embeds: [embed], files: [attachment] });
+                } else {
+                    logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase get_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Response Not OK`);
+                    return interaction.reply({ content: `Failed to get entry n°${entryId}.: ${response.statusText}`, ephemeral: true });
+                }
+            } catch (error) {
+                logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase get_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
+                return interaction.reply({ content: `Error while getting entry n°${entryId}.: ${error.message}`, ephemeral: true });
             }
         }
 
