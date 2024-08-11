@@ -1,6 +1,6 @@
-const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const logger = require('../../logger.js');
-const { henbase_url, henbase_key, henbase_admin_key, admin_users } = require('../../config.json');
+const { henbase_url, henbase_key, henbase_admin_key, trusted_users, admin_users } = require('../../config.json');
 const moment = require('moment');
 
 module.exports = {
@@ -311,7 +311,7 @@ module.exports = {
         // List all Tags
         else if (interaction.options.getSubcommand() === 'list_tags') {
 
-            if (!admin_users.includes(interaction.user.id)) {
+            if (!trusted_users.includes(interaction.user.id)) {
                 logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase list_tags' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT ADMIN`);
                 return interaction.reply({content: `You are not an Admin of Stolas Bot.`, ephemeral: true});
             }
@@ -336,29 +336,31 @@ module.exports = {
                     const generateEmbed = (page) => {
                         const start = (page - 1) * tagsPerPage;
                         const end = start + tagsPerPage;
-                        const pageTags = tags.slice(start, end).map(tag => tag.name); // Extract tag names
+                        const pageTags = tags.slice(start, end).map(tag => `\`${tag.name}\``);
 
-                        const embed = new EmbedBuilder()
+                        return new EmbedBuilder()
                             .setColor('#6b048a')
-                            .setAuthor({name: 'Stolas Bot by Eth22', iconURL: interaction.client.user.displayAvatarURL(), url: 'https://eth22.fr'})
-                            .setTitle('Tags List')
+                            .setAuthor({
+                                name: 'Stolas Bot by Eth22',
+                                iconURL: interaction.client.user.displayAvatarURL(),
+                                url: 'https://eth22.fr'
+                            })
+                            .setTitle('Henbase Tags List')
                             .setDescription(pageTags.join('\n'))
                             .setFooter({text: `${now}`, iconURL: interaction.client.user.displayAvatarURL()})
-                            .addFields({ name: `Page ${page} of ${totalPages}`, value: '\u200B', inline: true });
-
-                        return embed;
+                            .addFields({name: `Page ${page} of ${totalPages}`, value: '\u200B', inline: true});
                     };
 
                     const row = new ActionRowBuilder()
                         .addComponents(
                             new ButtonBuilder()
                                 .setCustomId('previous')
-                                .setLabel('Previous')
+                                .setLabel('⬅️')
                                 .setStyle(ButtonStyle.Primary)
                                 .setDisabled(true),
                             new ButtonBuilder()
                                 .setCustomId('next')
-                                .setLabel('Next')
+                                .setLabel('➡️')
                                 .setStyle(ButtonStyle.Primary)
                                 .setDisabled(totalPages <= 1)
                         );
@@ -386,12 +388,12 @@ module.exports = {
                                     .addComponents(
                                         new ButtonBuilder()
                                             .setCustomId('previous')
-                                            .setLabel('Previous')
+                                            .setLabel('⬅️')
                                             .setStyle(ButtonStyle.Primary)
                                             .setDisabled(currentPage === 1),
                                         new ButtonBuilder()
                                             .setCustomId('next')
-                                            .setLabel('Next')
+                                            .setLabel('➡️')
                                             .setStyle(ButtonStyle.Primary)
                                             .setDisabled(currentPage === totalPages)
                                     )
@@ -410,6 +412,51 @@ module.exports = {
             } catch (error) {
                 logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase list_tags' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
                 return interaction.reply({ content: `Error while listing all tags: ${error.message}`, ephemeral: true });
+            }
+        }
+
+        // Add Entry
+        else if (interaction.options.getSubcommand() === 'add_entry') {
+            const name = interaction.options.getString('name', true);
+            const tags = interaction.options.getString('tags', true).split(',').map(tag => tag.trim());
+            const file = interaction.options.getAttachment('file', true);
+
+            if (!admin_users.includes(interaction.user.id)) {
+                logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase add_entry ${name}' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT ADMIN`);
+                return interaction.reply({content: `You are not an Admin of Stolas Bot.`, ephemeral: true});
+            }
+
+            const command_url = `${henbase_url}/addEntry?name=${encodeURIComponent(name)}`;
+
+            try {
+                const formData = new FormData();
+                formData.append('tags', tags.join(','));
+                formData.append('file', new Blob([await fetch(file.url).then(res => res.arrayBuffer())], { type: file.contentType }), file.name);
+
+                const response = await fetch(command_url, {
+                    method: 'POST',
+                    headers: {
+                        'accept': 'application/json',
+                        'admin-key': henbase_admin_key,
+                    },
+                    body: formData,
+                });
+
+                if (response.ok) {
+                    logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase add_entry ${name}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Success`);
+
+                    // Fetch the file again to send it back in the reply
+                    const fileBuffer = await fetch(file.url).then(res => res.arrayBuffer());
+                    const attachment = new AttachmentBuilder(Buffer.from(fileBuffer), file.name);
+
+                    return interaction.reply({ content: `Added entry \`${name}\` successfully.`, files: [attachment] });
+                } else {
+                    logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase add_entry ${name}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Response Not OK`);
+                    return interaction.reply({ content: `Failed to add entry \`${name}\`.: ${response.statusText}`, ephemeral: true });
+                }
+            } catch (error) {
+                logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase add_entry ${name}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
+                return interaction.reply({ content: `Error while adding entry \`${name}\`.: ${error.message}`, ephemeral: true });
             }
         }
 
