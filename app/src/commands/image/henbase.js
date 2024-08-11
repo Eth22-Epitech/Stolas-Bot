@@ -165,6 +165,12 @@ module.exports = {
                 .addStringOption(option => option.setName('name').setDescription('(Optional) New name of the entry')))
         .addSubcommand(subcommand =>
             subcommand
+                .setName('add_tags_to_entry')
+                .setDescription('(ADMIN) Add tags to an existing entry')
+                .addIntegerOption(option => option.setName('id').setDescription('Id of the entry').setRequired(true))
+                .addStringOption(option => option.setName('tags').setDescription('Tags to give the entry (separated by comma ",")').setRequired(true)))
+        .addSubcommand(subcommand =>
+            subcommand
                 .setName('search_entries')
                 .setDescription('Search the database for entries')
                 .addStringOption(option => option.setName('tags').setDescription('Tags to search for (separated by comma ",")').setRequired(true))
@@ -642,6 +648,67 @@ module.exports = {
                 }
             } catch (error) {
                 logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase edit_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
+                return interaction.reply({ content: `Error while editing entry \`${entryId}\`.: ${error.message}`, ephemeral: true });
+            }
+        }
+
+        // Add Tags to Entry
+        else if (interaction.options.getSubcommand() === 'add_tags_to_entry') {
+            const entryId = interaction.options.getInteger('id', true);
+            const tags = interaction.options.getString('tags', true).split(',').map(tag => tag.trim());
+
+            if (!admin_users.includes(interaction.user.id)) {
+                logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase add_tags_to_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT ADMIN`);
+                return interaction.reply({content: `${interaction.user.username} is not an Admin of Stolas Bot.`, ephemeral: true});
+            }
+
+            const getEntryUrl = `${henbase_url}/getEntry?entryId=${entryId}`;
+
+            try {
+                // Fetch the entry data
+                const entryResponse = await fetch(getEntryUrl, {
+                    method: 'GET',
+                    headers: {
+                        'accept': 'application/json',
+                        'api-key': henbase_key,
+                    },
+                });
+
+                if (!entryResponse.ok) {
+                    return interaction.reply({ content: `Failed to get entry \`${entryId}\`.: ${entryResponse.statusText}`, ephemeral: true });
+                }
+
+                const entryData = await entryResponse.json();
+                const currentTags = entryData.entry.tags || [];
+
+                const editEntryUrl = `${henbase_url}/editEntry?entryId=${entryId}&name=${encodeURIComponent(entryData.entry.name)}`;
+
+                // Add new tags without duplicates
+                const updatedTags = [...new Set([...currentTags, ...tags])];
+
+                // Update the entry with the new tag list
+                const editResponse = await fetch(editEntryUrl, {
+                    method: 'POST',
+                    headers: {
+                        'accept': 'application/json',
+                        'admin-key': henbase_admin_key,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(updatedTags),
+                });
+
+                const responseBody = await editResponse.json();
+                console.log(responseBody);
+
+                if (editResponse.ok) {
+                    logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase add_tags_to_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Success`);
+                    return interaction.reply({ content: `Edited entry \`${entryId}\` successfully.` });
+                } else {
+                    logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase add_tags_to_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Response Not OK`);
+                    return interaction.reply({ content: `Failed to edit entry \`${entryId}\`.: ${editResponse.statusText}`, ephemeral: true });
+                }
+            } catch (error) {
+                logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase add_tags_to_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
                 return interaction.reply({ content: `Error while editing entry \`${entryId}\`.: ${error.message}`, ephemeral: true });
             }
         }

@@ -4,7 +4,7 @@
 docker-compose down --remove-orphans
 
 # Step 2: Remove the previous image
-docker rmi $(docker images -q stolas_bot_src)
+docker rmi stolas_bot_src
 
 # Step 3: Build the Docker image using docker-compose
 docker-compose build --remove-orphans
