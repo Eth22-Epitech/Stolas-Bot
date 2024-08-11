@@ -199,6 +199,12 @@ module.exports = {
     async execute(interaction) {
         const now = moment().format('MM/DD/YYYY HH:mm:ss');
 
+        // Return if channel isn't nsfw
+        if (!interaction.channel.nsfw) {
+            logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT in NSFW Channel`);
+            return interaction.reply({content: 'This command can only be used in NSFW channels.', ephemeral: true});
+        }
+
         // Create Database
         if (interaction.options.getSubcommand() === 'create_database') {
             if (!admin_users.includes(interaction.user.id)) {
