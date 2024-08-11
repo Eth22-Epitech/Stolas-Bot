@@ -73,6 +73,12 @@ async function getEntryData(now, interaction, entryId, current_index = -1, max_i
                 )
                 .setFooter({text: `${now}`, iconURL: interaction.client.user.displayAvatarURL()});
 
+            if (entryData.artist) {
+                embed.addFields(
+                    { name: 'Artist', value: `${entryData.artist}` }
+                );
+            }
+
             if (current_index !== -1 && max_index !== -1) {
                 embed.addFields(
                     { name: 'Search Index', value: `${current_index + 1} / ${max_index}` }
@@ -145,7 +151,8 @@ module.exports = {
                 .setDescription('(ADMIN) Add an entry to the database')
                 .addStringOption(option => option.setName('name').setDescription('Name of the entry').setRequired(true))
                 .addStringOption(option => option.setName('tags').setDescription('Tags to give the entry (separated by comma ",")').setRequired(true))
-                .addAttachmentOption(option => option.setName('file').setDescription('File of the entry').setRequired(true)))
+                .addAttachmentOption(option => option.setName('file').setDescription('File of the entry').setRequired(true))
+                .addStringOption(option => option.setName('artist').setDescription('Artist of the entry')))
         .addSubcommand(subcommand =>
             subcommand
                 .setName('get_entry')
@@ -162,13 +169,20 @@ module.exports = {
                 .setDescription('(ADMIN) Edit an entry to the database')
                 .addIntegerOption(option => option.setName('id').setDescription('Id of the entry').setRequired(true))
                 .addStringOption(option => option.setName('tags').setDescription('Tags to give the entry (separated by comma ",")').setRequired(true))
-                .addStringOption(option => option.setName('name').setDescription('(Optional) New name of the entry')))
+                .addStringOption(option => option.setName('name').setDescription('(Optional) New name of the entry'))
+                .addStringOption(option => option.setName('artist').setDescription('Artist of the entry')))
         .addSubcommand(subcommand =>
             subcommand
                 .setName('add_tags_to_entry')
                 .setDescription('(ADMIN) Add tags to an existing entry')
                 .addIntegerOption(option => option.setName('id').setDescription('Id of the entry').setRequired(true))
                 .addStringOption(option => option.setName('tags').setDescription('Tags to give the entry (separated by comma ",")').setRequired(true)))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('edit_artist_of_entry')
+                .setDescription(`(ADMIN) Edit an entry's artist`)
+                .addIntegerOption(option => option.setName('id').setDescription('Id of the entry').setRequired(true))
+                .addStringOption(option => option.setName('artist').setDescription('Artist of the entry').setRequired(true)))
         .addSubcommand(subcommand =>
             subcommand
                 .setName('search_entries')
@@ -179,7 +193,8 @@ module.exports = {
                     { name: 'Image', value: 'image' },
                     { name: 'Gif', value: 'gif' },
                     { name: 'Video', value: 'video' }
-                ))),
+                ))
+                .addStringOption(option => option.setName('artist').setDescription('Artist of the entry'))),
 
     async execute(interaction) {
         const now = moment().format('MM/DD/YYYY HH:mm:ss');
@@ -520,13 +535,15 @@ module.exports = {
             const name = interaction.options.getString('name', true);
             const tags = interaction.options.getString('tags', true).split(',').map(tag => tag.trim());
             const file = interaction.options.getAttachment('file', true);
+            const artist = interaction.options.getString('artist');
 
             if (!admin_users.includes(interaction.user.id)) {
                 logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase add_entry ${name}' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT ADMIN`);
                 return interaction.reply({content: `You are not an Admin of Stolas Bot.`, ephemeral: true});
             }
 
-            const command_url = `${henbase_url}/addEntry?name=${encodeURIComponent(name)}`;
+            let command_url = `${henbase_url}/addEntry?name=${encodeURIComponent(name)}`;
+            if (artist) { command_url += `&artist=${encodeURIComponent(artist)}`; }
 
             try {
                 const formData = new FormData();
@@ -618,6 +635,7 @@ module.exports = {
             const entryId = interaction.options.getInteger('id', true);
             const new_tags = interaction.options.getString('tags', true).split(',').map(tag => tag.trim());
             const new_name = interaction.options.getString('name', true);
+            const new_artist = interaction.options.getString('artist');
 
             if (!admin_users.includes(interaction.user.id)) {
                 logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase edit_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT ADMIN`);
@@ -627,6 +645,9 @@ module.exports = {
             let command_url = `${henbase_url}/editEntry?entryId=${entryId}`;
             if (new_name) {
                 command_url += `&name=${encodeURIComponent(new_name)}`;
+            }
+            if (new_artist) {
+                command_url += `&artist=${encodeURIComponent(new_artist)}`;
             }
             try {
                 const response = await fetch(command_url, {
@@ -713,11 +734,69 @@ module.exports = {
             }
         }
 
+        // Edit Artist of Entry
+        else if (interaction.options.getSubcommand() === 'edit_artist_of_entry') {
+            const entryId = interaction.options.getInteger('id', true);
+            const tags = interaction.options.getString('artist', true);
+
+            if (!admin_users.includes(interaction.user.id)) {
+                logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase add_tags_to_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT ADMIN`);
+                return interaction.reply({content: `${interaction.user.username} is not an Admin of Stolas Bot.`, ephemeral: true});
+            }
+
+            const getEntryUrl = `${henbase_url}/getEntry?entryId=${entryId}`;
+
+            try {
+                // Fetch the entry data
+                const entryResponse = await fetch(getEntryUrl, {
+                    method: 'GET',
+                    headers: {
+                        'accept': 'application/json',
+                        'api-key': henbase_key,
+                    },
+                });
+
+                if (!entryResponse.ok) {
+                    return interaction.reply({ content: `Failed to get entry \`${entryId}\`.: ${entryResponse.statusText}`, ephemeral: true });
+                }
+
+                const entryData = await entryResponse.json();
+
+                const editEntryUrl = `${henbase_url}/editEntry?entryId=${entryId}&name=${encodeURIComponent(entryData.entry.name)}&artist=${encodeURIComponent(tags)}`;
+
+                // Update the entry with the new tag list
+                const editResponse = await fetch(editEntryUrl, {
+                    method: 'POST',
+                    headers: {
+                        'accept': 'application/json',
+                        'admin-key': henbase_admin_key,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(entryData.tags),
+                });
+
+                const responseBody = await editResponse.json();
+                console.log(responseBody);
+
+                if (editResponse.ok) {
+                    logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase add_tags_to_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Success`);
+                    return interaction.reply({ content: `Edited entry \`${entryId}\` successfully.` });
+                } else {
+                    logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase add_tags_to_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Response Not OK`);
+                    return interaction.reply({ content: `Failed to edit entry \`${entryId}\`.: ${editResponse.statusText}`, ephemeral: true });
+                }
+            } catch (error) {
+                logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase add_tags_to_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
+                return interaction.reply({ content: `Error while editing entry \`${entryId}\`.: ${error.message}`, ephemeral: true });
+            }
+        }
+
         // Search Entries
         else if (interaction.options.getSubcommand() === 'search_entries') {
             const tags = interaction.options.getString('tags', true).split(',').map(tag => tag.trim());
             const negative_tags = interaction.options.getString('negative_tags') ? interaction.options.getString('negative_tags').split(',').map(tag => tag.trim()) : [];
             const format = interaction.options.getString('format');
+            const artist = interaction.options.getString('artist');
 
             if (!trusted_users.includes(interaction.user.id)) {
                 logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase search_entries' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT Trusted User`);
@@ -747,6 +826,10 @@ module.exports = {
             // Append format if provided
             if (format) {
                 command_url += `file_format=${encodeURIComponent(format)}&`;
+            }
+            // Append artist if provided
+            if (artist) {
+                command_url += `artist=${encodeURIComponent(artist)}&`;
             }
             // Remove the trailing '&' or '?' if no parameters were added
             command_url = command_url.slice(0, -1);
