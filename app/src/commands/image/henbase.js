@@ -5,7 +5,7 @@ const { henbase_url, henbase_key, henbase_admin_key, trusted_users, admin_users 
 const moment = require('moment');
 
 // Function to convert size to appropriate unit
-function formatSize(size) {
+async function formatSize(size) {
     const units = ['bytes', 'KB', 'MB', 'GB', 'TB'];
     let unitIndex = 0;
 
@@ -15,6 +15,80 @@ function formatSize(size) {
     }
 
     return `${size.toFixed(2)} ${units[unitIndex]}`;
+}
+
+// Function to get an entry's data and file from its id
+async function getEntryData(now, interaction, entryId) {
+    const command_url = `${henbase_url}/getEntry?entryId=${entryId}`;
+    const content_url = `${henbase_url}/content/${entryId}`;
+
+    try {
+        const response = await fetch(command_url, {
+            method: 'GET',
+            headers: {
+                'accept': 'application/json',
+                'api-key': henbase_key,
+            },
+        });
+
+        if (response.ok) {
+            const responseData = await response.json();
+            const entryData = responseData.entry;
+
+            // Fetch the entry content
+            const contentResponse = await fetch(content_url, {
+                method: 'GET',
+                headers: {
+                    'api-key': henbase_key,
+                },
+            });
+
+            let attachment;
+            if (contentResponse.ok) {
+                const buffer = await contentResponse.arrayBuffer();
+
+                if (entryData.format === 'image') {
+                    attachment = new AttachmentBuilder(Buffer.from(buffer), {name: 'entry_image.png'});
+                } else if (entryData.format === 'video') {
+                    attachment = new AttachmentBuilder(Buffer.from(buffer), {name: 'entry_video.mp4'});
+                } else if (entryData.format === 'gif') {
+                    attachment = new AttachmentBuilder(Buffer.from(buffer), {name: 'entry_image.gif'});
+                }
+            } else {
+                return null;
+            }
+
+            // Calculate entry's size with correct unit
+            let size = await formatSize(entryData.size);
+
+            const embed = new EmbedBuilder()
+                .setColor('#6b048a')
+                .setAuthor({name: 'Stolas Bot by Eth22', iconURL: interaction.client.user.displayAvatarURL(), url: 'https://eth22.fr'})
+                .setTitle(`${underscore(`Henbase Entry ${entryData.id}:`)}`)
+                .addFields(
+                    { name: `Name`, value: `${entryData.name}` },
+                    { name: 'Tags', value: `\`${entryData.tags.join(', ')}\`` || 'None' },
+                    { name: 'Format & Extension', value: `${entryData.format} > \`.${entryData.extension}\``, inline: true },
+                    { name: 'Size', value: `\`${size}\``, inline: true },
+                )
+                .setFooter({text: `${now}`, iconURL: interaction.client.user.displayAvatarURL()});
+
+            if (attachment) {
+                if (entryData.format === 'image') {
+                    embed.setImage('attachment://entry_image.png');
+                }  else if (entryData.format === 'gif') {
+                    embed.setImage('attachment://entry_image.gif');
+                }
+            }
+
+            return { embed, attachment };
+        } else {
+            return null;
+        }
+    } catch (error) {
+        logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase /content/${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
+        return null
+    }
 }
 
 module.exports = {
@@ -480,81 +554,17 @@ module.exports = {
 
             if (!trusted_users.includes(interaction.user.id)) {
                 logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase get_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT Trusted User`);
-                return interaction.reply({content: `You are not an Admin of Stolas Bot.`, ephemeral: true});
+                return interaction.reply({content: `${interaction.user.username} is not a Trusted User of Stolas Bot.`, ephemeral: true});
             }
 
-            const command_url = `${henbase_url}/getEntry?entryId=${entryId}`;
-            const content_url = `${henbase_url}/content/${entryId}`;
+            const entry = await getEntryData(now, interaction, entryId);
 
-            try {
-                const response = await fetch(command_url, {
-                    method: 'GET',
-                    headers: {
-                        'accept': 'application/json',
-                        'api-key': henbase_key,
-                    },
-                });
-
-                if (response.ok) {
-                    const responseData = await response.json();
-                    const entryData = responseData.entry;
-
-                    // Fetch the entry content
-                    const contentResponse = await fetch(content_url, {
-                        method: 'GET',
-                        headers: {
-                            'api-key': henbase_key,
-                        },
-                    });
-
-                    let attachment;
-                    if (contentResponse.ok) {
-                        const buffer = await contentResponse.arrayBuffer();
-                        const contentType = contentResponse.headers.get('content-type');
-
-                        if (entryData.format === 'image') {
-                            attachment = new AttachmentBuilder(Buffer.from(buffer), {name: 'entry_image.png'});
-                        } else if (entryData.format === 'video') {
-                            attachment = new AttachmentBuilder(Buffer.from(buffer), {name: 'entry_video.mp4'});
-                        } else if (entryData.format === 'gif') {
-                            attachment = new AttachmentBuilder(Buffer.from(buffer), {name: 'entry_image.gif'});
-                        }
-                    } else {
-                        logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase get_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Content Response Not OK`);
-                    }
-
-                    // Calculate entry's size with correct unit
-                    let size = formatSize(entryData.size);
-
-                    const embed = new EmbedBuilder()
-                        .setColor('#6b048a')
-                        .setAuthor({name: 'Stolas Bot by Eth22', iconURL: interaction.client.user.displayAvatarURL(), url: 'https://eth22.fr'})
-                        .setTitle(`${underscore(`Henbase Entry \`${entryData.id}\`:`)}`)
-                        .addFields(
-                            { name: `Name`, value: `${entryData.name}` },
-                            { name: 'Tags', value: `\`${entryData.tags.join(', ')}\`` || 'None' },
-                            { name: 'Format & Extension', value: `${entryData.format} > \`.${entryData.extension}\`` },
-                            { name: 'Size', value: `\`${size}\``, inline: true },
-                        )
-                        .setFooter({text: `${now}`, iconURL: interaction.client.user.displayAvatarURL()});
-
-                    if (attachment) {
-                        if (entryData.format === 'image') {
-                            embed.setImage('attachment://entry_image.png');
-                        }  else if (entryData.format === 'gif') {
-                            embed.setImage('attachment://entry_image.gif');
-                        }
-                    }
-
-                    logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase get_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Success`);
-                    return interaction.reply({ embeds: [embed], files: [attachment] });
-                } else {
-                    logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase get_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Response Not OK`);
-                    return interaction.reply({ content: `Failed to get entry n°${entryId}.: ${response.statusText}`, ephemeral: true });
-                }
-            } catch (error) {
-                logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase get_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
-                return interaction.reply({ content: `Error while getting entry n°${entryId}.: ${error.message}`, ephemeral: true });
+            if (entry) {
+                logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase get_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Success`);
+                return interaction.reply({ embeds: [entry.embed], files: [entry.attachment] });
+            } else {
+                logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase get_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error`);
+                return interaction.reply({ content: `Failed to get entry n°${entryId}.`, ephemeral: true });
             }
         }
 
