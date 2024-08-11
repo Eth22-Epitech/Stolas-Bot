@@ -18,7 +18,7 @@ async function formatSize(size) {
 }
 
 // Function to get an entry's data and file from its id
-async function getEntryData(now, interaction, entryId) {
+async function getEntryData(now, interaction, entryId, current_index = -1, max_index = -1) {
     const command_url = `${henbase_url}/getEntry?entryId=${entryId}`;
     const content_url = `${henbase_url}/content/${entryId}`;
 
@@ -72,6 +72,12 @@ async function getEntryData(now, interaction, entryId) {
                     { name: 'Size', value: `\`${size}\``, inline: true },
                 )
                 .setFooter({text: `${now}`, iconURL: interaction.client.user.displayAvatarURL()});
+
+            if (current_index !== -1 && max_index !== -1) {
+                embed.addFields(
+                    { name: 'Search Index', value: `${current_index + 1} / ${max_index}` }
+                );
+            }
 
             if (attachment) {
                 if (entryData.format === 'image') {
@@ -159,7 +165,7 @@ module.exports = {
                 .addStringOption(option => option.setName('name').setDescription('(Optional) New name of the entry')))
         .addSubcommand(subcommand =>
             subcommand
-                .setName('search')
+                .setName('search_entries')
                 .setDescription('Search the database for entries')
                 .addStringOption(option => option.setName('tags').setDescription('Tags to search for (separated by comma ",")').setRequired(true))
                 .addStringOption(option => option.setName('negative_tags').setDescription('(Optional) Tags to ban from the search (separated by comma ",")'))
@@ -318,7 +324,7 @@ module.exports = {
 
                 if (response.ok) {
                     logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase add_tag ${tag}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Success`);
-                    return interaction.reply({ content: `Added tag \`${tag}\` successfully.`, ephemeral: true });
+                    return interaction.reply({ content: `Added tag \`${tag}\` successfully.` });
                 } else {
                     logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase add_tag ${tag}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Response Not OK`);
                     return interaction.reply({ content: `Failed to add tag \`${tag}\`.: ${response.statusText}`, ephemeral: true });
@@ -351,7 +357,7 @@ module.exports = {
 
                 if (response.ok) {
                     logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase remove_tag ${tag}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Success`);
-                    return interaction.reply({ content: `Removed tag \`${tag}\` successfully.`, ephemeral: true });
+                    return interaction.reply({ content: `Removed tag \`${tag}\` successfully.` });
                 } else {
                     logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase remove_tag ${tag}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Response Not OK`);
                     return interaction.reply({ content: `Failed to remove tag \`${tag}\`.: ${response.statusText}`, ephemeral: true });
@@ -385,7 +391,7 @@ module.exports = {
 
                 if (response.ok) {
                     logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase edit_tag ${old_tag} ${new_tag}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Success`);
-                    return interaction.reply({ content: `Edited tag \`${old_tag}\` to \`${new_tag}\` successfully.`, ephemeral: true });
+                    return interaction.reply({ content: `Edited tag \`${old_tag}\` to \`${new_tag}\` successfully.` });
                 } else {
                     logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase edit_tag ${old_tag} ${new_tag}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Response Not OK`);
                     return interaction.reply({ content: `Failed to edit tag \`${old_tag}\` to \`${new_tag}\`.: ${response.statusText}`, ephemeral: true });
@@ -563,8 +569,197 @@ module.exports = {
                 logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase get_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Success`);
                 return interaction.reply({ embeds: [entry.embed], files: [entry.attachment] });
             } else {
-                logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase get_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error`);
-                return interaction.reply({ content: `Failed to get entry n°${entryId}.`, ephemeral: true });
+                logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase get_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Failed to get entry ${entryId}`);
+                return interaction.reply({ content: `Failed to get entry \`${entryId}\`.`, ephemeral: true });
+            }
+        }
+
+        // Remove Entry
+        else if (interaction.options.getSubcommand() === 'remove_entry') {
+            const entryId = interaction.options.getInteger('id', true);
+
+            if (!admin_users.includes(interaction.user.id)) {
+                logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase remove_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT ADMIN`);
+                return interaction.reply({content: `You are not an Admin of Stolas Bot.`, ephemeral: true});
+            }
+
+            const command_url = `${henbase_url}/removeEntry?entryId=${entryId}`;
+
+            try {
+                const response = await fetch(command_url, {
+                    method: 'POST',
+                    headers: {
+                        'accept': 'application/json',
+                        'admin-key': henbase_admin_key,
+                    },
+                });
+
+                if (response.ok) {
+                    logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase remove_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Success`);
+                    return interaction.reply({ content: `Removed entry \`${entryId}\` successfully.` });
+                } else {
+                    logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase remove_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Response Not OK`);
+                    return interaction.reply({ content: `Failed to remove entry \`${entryId}\`.: ${response.statusText}`, ephemeral: true });
+                }
+            } catch (error) {
+                logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase remove_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
+                return interaction.reply({ content: `Error while removing entry \`${entryId}\`.: ${error.message}`, ephemeral: true });
+            }
+        }
+
+        // Edit Entry
+        else if (interaction.options.getSubcommand() === 'edit_entry') {
+            const entryId = interaction.options.getInteger('id', true);
+            const new_tags = interaction.options.getString('tags', true).split(',').map(tag => tag.trim());
+            const new_name = interaction.options.getString('name', true);
+
+            if (!admin_users.includes(interaction.user.id)) {
+                logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase edit_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT ADMIN`);
+                return interaction.reply({content: `${interaction.user.username} is not an Admin of Stolas Bot.`, ephemeral: true});
+            }
+
+            let command_url = `${henbase_url}/editEntry?entryId=${entryId}`;
+            if (new_name) {
+                command_url += `&name=${encodeURIComponent(new_name)}`;
+            }
+            try {
+                const response = await fetch(command_url, {
+                    method: 'POST',
+                    headers: {
+                        'accept': 'application/json',
+                        'admin-key': henbase_admin_key,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(new_tags),
+                });
+
+                if (response.ok) {
+                    logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase edit_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Success`);
+                    return interaction.reply({ content: `Edited entry \`${entryId}\` successfully.` });
+                } else {
+                    logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase edit_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Response Not OK`);
+                    return interaction.reply({ content: `Failed to edit entry \`${entryId}\`.: ${response.statusText}`, ephemeral: true });
+                }
+            } catch (error) {
+                logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase edit_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
+                return interaction.reply({ content: `Error while editing entry \`${entryId}\`.: ${error.message}`, ephemeral: true });
+            }
+        }
+
+        // Search Entries
+        else if (interaction.options.getSubcommand() === 'search_entries') {
+            const tags = interaction.options.getString('tags', true).split(',').map(tag => tag.trim());
+            const negative_tags = interaction.options.getString('negative_tags') ? interaction.options.getString('negative_tags').split(',').map(tag => tag.trim()) : [];
+            const format = interaction.options.getString('format');
+
+            if (!trusted_users.includes(interaction.user.id)) {
+                logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase search_entries' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT Trusted User`);
+                return interaction.reply({content: `${interaction.user.username} is not a Trusted User of Stolas Bot.`, ephemeral: true});
+            }
+
+            // Construct the URL
+            let command_url = `${henbase_url}/searchEntries?`;
+
+            // Append tags
+            if (!tags) {
+                logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase search_entries' in '${interaction.guild.name} #${interaction.channel.name}' issued => No tag provided`);
+                return interaction.reply({ content: `At least one tag is expected.`, ephemeral: true });
+            }
+            tags.forEach(tag => {
+                if (typeof tag !== 'string') {
+                    tag = String(tag);
+                }
+                command_url += `tags=${encodeURIComponent(tag)}&`;
+            });
+            // Append negative tags
+            if (negative_tags) {
+                negative_tags.forEach(negative_tag => {
+                    command_url += `negativeTags=${encodeURIComponent(negative_tag)}&`;
+                });
+            }
+            // Append format if provided
+            if (format) {
+                command_url += `file_format=${encodeURIComponent(format)}&`;
+            }
+            // Remove the trailing '&' or '?' if no parameters were added
+            command_url = command_url.slice(0, -1);
+
+            try {
+                const response = await fetch(command_url, {
+                    method: 'GET',
+                    headers: {
+                        'accept': 'application/json',
+                        'api-key': henbase_key,
+                    },
+                });
+
+                if (response.ok) {
+                    const responseData = await response.json();
+                    const entryIds = responseData.entries ? responseData.entries.map(entry => entry[0]) : [];
+
+                    if (entryIds.length === 0) {
+                        return interaction.reply({ content: `No entries found.`, ephemeral: true });
+                    }
+
+                    let currentIndex = 0;
+
+                    const displayEntry = async (index, maxIndex) => {
+                        const entry = await getEntryData(now, interaction, entryIds[index], index, maxIndex);
+                        if (entry) {
+                            await interaction.editReply({ embeds: [entry.embed], files: [entry.attachment], components: [navigationRow] });
+                        } else {
+                            await interaction.editReply({ content: `Failed to get entry \`${entryIds[index]}\`.`, ephemeral: true });
+                        }
+                    };
+
+                    const navigationRow = new ActionRowBuilder()
+                        .addComponents(
+                            new ButtonBuilder()
+                                .setCustomId('prev')
+                                .setLabel('⬅️')
+                                .setStyle(ButtonStyle.Primary)
+                                .setDisabled(currentIndex === 0),
+                            new ButtonBuilder()
+                                .setCustomId('next')
+                                .setLabel('➡️')
+                                .setStyle(ButtonStyle.Primary)
+                                .setDisabled(currentIndex === entryIds.length - 1)
+                        );
+
+                    await interaction.reply({
+                        content: ``, components: [navigationRow]
+                    });
+                    await displayEntry(currentIndex, entryIds.length);
+
+                    const filter = i => i.user.id === interaction.user.id;
+                    const collector = interaction.channel.createMessageComponentCollector({ filter, time: 60000 });
+
+                    collector.on('collect', async i => {
+                        if (i.customId === 'prev' && currentIndex > 0) {
+                            currentIndex--;
+                        } else if (i.customId === 'next' && currentIndex < entryIds.length - 1) {
+                            currentIndex++;
+                        }
+
+                        navigationRow.components[0].setDisabled(currentIndex === 0);
+                        navigationRow.components[1].setDisabled(currentIndex === entryIds.length - 1);
+
+                        await i.update({ components: [navigationRow] });
+                        await displayEntry(currentIndex, entryIds.length);
+                    });
+
+                    collector.on('end', async () => {
+                        navigationRow.components.forEach(button => button.setDisabled(true));
+                        await interaction.editReply({ components: [navigationRow] });
+                    });
+
+                } else {
+                    logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase search_entries' in '${interaction.guild.name} #${interaction.channel.name}' issued => Response Not OK`);
+                    return interaction.reply({ content: `Failed to search entries.: ${response.statusText}`, ephemeral: true });
+                }
+            } catch (error) {
+                logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase search_entries' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
+                return interaction.reply({ content: `Error while searching entries.: ${error.message}`, ephemeral: true });
             }
         }
 
