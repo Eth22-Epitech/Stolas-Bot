@@ -612,7 +612,7 @@ module.exports = {
 
             if (entry) {
                 logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase get_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Success`);
-                return interaction.editReply({ embeds: [entry.embed], files: [entry.attachment] });
+                return interaction.editReply({ content: '', embeds: [entry.embed], files: [entry.attachment] });
             } else {
                 logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase get_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Failed to get entry ${entryId}`);
                 return interaction.editReply({ content: `Failed to get entry \`${entryId}\`.`, ephemeral: true });
@@ -1035,6 +1035,12 @@ module.exports = {
 
                 if (searchResponse.ok) {
                     const searchData = await searchResponse.json();
+
+                    if (searchData.tags.length === 0) {
+                        logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase search_tags ${searchPrefix}' in '${interaction.guild.name} #${interaction.channel.name}' issued => No tags found`);
+                        return interaction.reply({ content: `No tags found with prefix \`${searchPrefix}\`.` });
+                    }
+
                     const foundTags = searchData.tags.sort((a, b) => a.localeCompare(b));
                     const tagsPerPage = 10;
                     const totalPages = Math.ceil(foundTags.length / tagsPerPage);
