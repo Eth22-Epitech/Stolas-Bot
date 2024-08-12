@@ -606,6 +606,8 @@ module.exports = {
                 return interaction.reply({content: `${interaction.user.username} is not a Trusted User of Stolas Bot.`, ephemeral: true});
             }
 
+            await interaction.reply({ content: 'Fetching entry...', ephemeral: true });
+
             const entry = await getEntryData(now, interaction, entryId);
 
             if (entry) {
