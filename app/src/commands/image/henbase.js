@@ -566,6 +566,9 @@ module.exports = {
             if (artist) { command_url += `&artist=${encodeURIComponent(artist)}`; }
 
             try {
+                // Initial reply with processing message
+                await interaction.reply({ content: 'Processing entry...' });
+
                 const formData = new FormData();
                 formData.append('tags', tags.join(','));
                 formData.append('file', new Blob([await fetch(file.url).then(res => res.arrayBuffer())], { type: file.contentType }), file.name);
@@ -586,14 +589,14 @@ module.exports = {
                     const fileBuffer = await fetch(file.url).then(res => res.arrayBuffer());
                     const attachment = new AttachmentBuilder(Buffer.from(fileBuffer), file.name);
 
-                    return interaction.reply({ content: `Added entry \`${name}\` successfully.`, files: [attachment] });
+                    return interaction.editReply({ content: `Added entry \`${name}\` successfully.`, files: [attachment] });
                 } else {
                     logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase add_entry ${name}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Response Not OK`);
-                    return interaction.reply({ content: `Failed to add entry \`${name}\`.: ${response.statusText}`, ephemeral: true });
+                    return interaction.editReply({ content: `Failed to add entry \`${name}\`.: ${response.statusText}`, ephemeral: true });
                 }
             } catch (error) {
                 logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase add_entry ${name}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
-                return interaction.reply({ content: `Error while adding entry \`${name}\`.: ${error.message}`, ephemeral: true });
+                return interaction.editReply({ content: `Error while adding entry \`${name}\`.: ${error.message}`, ephemeral: true });
             }
         }
 
