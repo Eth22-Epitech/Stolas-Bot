@@ -191,7 +191,24 @@ module.exports = {
                     { name: 'Gif', value: 'gif' },
                     { name: 'Video', value: 'video' }
                 ))
-                .addStringOption(option => option.setName('artist').setDescription('Artist of the entry'))),
+                .addStringOption(option => option.setName('artist').setDescription('Artist of the entry')))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('search_random_entry')
+                .setDescription('Search the database for a random entry matching the search terms')
+                .addStringOption(option => option.setName('tags').setDescription('Tags to search for (separated by comma ",")').setRequired(true))
+                .addStringOption(option => option.setName('negative_tags').setDescription('(Optional) Tags to ban from the search (separated by comma ",")'))
+                .addStringOption(option => option.setName('format').setDescription(`(Optional) File format to search for`).addChoices(
+                    { name: 'Image', value: 'image' },
+                    { name: 'Gif', value: 'gif' },
+                    { name: 'Video', value: 'video' }
+                ))
+                .addStringOption(option => option.setName('artist').setDescription('Artist of the entry')))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('search_tags')
+                .setDescription('(Trusted User) Search for tags with the given prefix')
+                .addStringOption(option => option.setName('search').setDescription('Prefix to search tags starting with it').setRequired(true))),
 
     async execute(interaction) {
         const now = moment().format('MM/DD/YYYY HH:mm:ss');
@@ -863,6 +880,242 @@ module.exports = {
             } catch (error) {
                 logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase search_entries' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
                 return interaction.reply({ content: `Error while searching entries.: ${error.message}`, ephemeral: true });
+            }
+        }
+
+        // Search Random Entry
+        else if (interaction.options.getSubcommand() === 'search_random_entry') {
+            const tags = interaction.options.getString('tags', true).split(',').map(tag => tag.trim());
+            const negative_tags = interaction.options.getString('negative_tags') ? interaction.options.getString('negative_tags').split(',').map(tag => tag.trim()) : [];
+            const format = interaction.options.getString('format');
+            const artist = interaction.options.getString('artist');
+
+            if (!trusted_users.includes(interaction.user.id)) {
+                logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase search_random_entry' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT Trusted User`);
+                return interaction.reply({content: `${interaction.user.username} is not a Trusted User of Stolas Bot.`, ephemeral: true});
+            }
+
+            // Construct the URL
+            let command_url = `${henbase_url}/searchEntries/random?`;
+
+            // Append tags
+            tags.forEach(tag => {
+                command_url += `tags=${encodeURIComponent(tag)}&`;
+            });
+            // Append negative tags
+            if (negative_tags.length > 0) {
+                negative_tags.forEach(negative_tag => {
+                    command_url += `negativeTags=${encodeURIComponent(negative_tag)}&`;
+                });
+            }
+            // Append format if provided
+            if (format) {
+                command_url += `file_format=${encodeURIComponent(format)}&`;
+            }
+            // Append artist if provided
+            if (artist) {
+                command_url += `artist=${encodeURIComponent(artist)}&`;
+            }
+            // Remove the trailing '&' or '?' if no parameters were added
+            command_url = command_url.slice(0, -1);
+
+            const rerollButton = new ButtonBuilder()
+                .setCustomId('reroll')
+                .setLabel('🔄')
+                .setStyle(ButtonStyle.Primary);
+
+            const row = new ActionRowBuilder().addComponents(rerollButton);
+
+            // Initial reply with loading message and reroll button
+            await interaction.reply({ content: 'Fetching entry...', components: [row] });
+
+            const fetchAndDisplayEntry = async () => {
+                try {
+                    const response = await fetch(command_url, {
+                        method: 'GET',
+                        headers: {
+                            'accept': 'application/json',
+                            'api-key': henbase_key,
+                        },
+                    });
+
+                    if (response.ok) {
+                        const responseData = await response.json();
+                        const entry = responseData.entry;
+
+                        if (!entry || !entry[0]) {
+                            return interaction.editReply({ content: `No entries found.`, components: [] });
+                        }
+
+                        const entryData = await getEntryData(now, interaction, entry[0]);
+                        if (entryData) {
+                            const embed = entryData.embed;
+                            const attachment = entryData.attachment;
+
+                            logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase search_random_entry' in '${interaction.guild.name} #${interaction.channel.name}' issued => Entry ${entry[0]}`);
+                            await interaction.editReply({ embeds: [embed], files: [attachment], components: [row] });
+
+                            const filter = i => i.customId === 'reroll' && i.user.id === interaction.user.id;
+                            const collector = interaction.channel.createMessageComponentCollector({ filter, time: 60000 });
+
+                            collector.on('collect', async i => {
+                                if (i.customId === 'reroll') {
+                                    // Fetch new entry data from the API
+                                    const newResponse = await fetch(command_url, {
+                                        method: 'GET',
+                                        headers: {
+                                            'accept': 'application/json',
+                                            'api-key': henbase_key,
+                                        },
+                                    });
+
+                                    if (newResponse.ok) {
+                                        const newResponseData = await newResponse.json();
+                                        const newEntry = newResponseData.entry;
+
+                                        if (!newEntry || !newEntry[0]) {
+                                            return i.update({ content: `No entries found.`, components: [] });
+                                        }
+
+                                        const newEntryData = await getEntryData(now, interaction, newEntry[0]);
+                                        if (newEntryData) {
+                                            const newEmbed = newEntryData.embed;
+                                            const newAttachment = newEntryData.attachment;
+                                            logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) 'reroll search_random_entry' in '${interaction.guild.name} #${interaction.channel.name}' issued => Entry ${newEntry[0]}`);
+                                            await i.update({ embeds: [newEmbed], files: [newAttachment], components: [row] });
+                                        }
+                                    }
+                                }
+                            });
+
+                            collector.on('end', async () => {
+                                row.components.forEach(button => button.setDisabled(true));
+                                await interaction.editReply({ components: [row] });
+                            });
+
+                        } else {
+                            return interaction.editReply({ content: `Failed to get entry data.`, components: [] });
+                        }
+                    } else {
+                        const errorText = await response.text();
+                        logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase search_random_entry' in '${interaction.guild.name} #${interaction.channel.name}' issued => Response Not OK: ${errorText}`);
+                        return interaction.editReply({ content: `Failed to search for random entry.: ${response.statusText}`, components: [] });
+                    }
+                } catch (error) {
+                    logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase search_random_entry' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
+                    return interaction.editReply({ content: `Error while searching for random entry.: ${error.message}`, components: [] });
+                }
+            };
+
+            fetchAndDisplayEntry();
+        }
+
+        // Search Tags
+        else if (interaction.options.getSubcommand() === 'search_tags') {
+            const searchPrefix = interaction.options.getString('search', true);
+
+            if (!trusted_users.includes(interaction.user.id)) {
+                logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase search_tags ${searchPrefix}' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT Trusted User`);
+                return interaction.reply({content: `${interaction.user.username} is not a Trusted User of Stolas Bot.`, ephemeral: true});
+            }
+
+            const searchTagsUrl = `${henbase_url}/searchTags?prefix=${encodeURIComponent(searchPrefix)}`;
+
+            try {
+                // Fetch the tags matching the search prefix
+                const searchResponse = await fetch(searchTagsUrl, {
+                    method: 'GET',
+                    headers: {
+                        'accept': 'application/json',
+                        'api-key': henbase_key,
+                    },
+                });
+
+                if (searchResponse.ok) {
+                    const searchData = await searchResponse.json();
+                    const foundTags = searchData.tags.sort((a, b) => a.localeCompare(b));
+                    const tagsPerPage = 10;
+                    const totalPages = Math.ceil(foundTags.length / tagsPerPage);
+
+                    const generateEmbed = (page) => {
+                        const start = (page - 1) * tagsPerPage;
+                        const end = start + tagsPerPage;
+                        const pageTags = foundTags.slice(start, end).map(tag => `\`${tag}\``);
+
+                        return new EmbedBuilder()
+                            .setColor('#6b048a')
+                            .setAuthor({
+                                name: 'Stolas Bot by Eth22',
+                                iconURL: interaction.client.user.displayAvatarURL(),
+                                url: 'https://eth22.fr'
+                            })
+                            .setTitle('Henbase Tags Search Results')
+                            .setDescription(pageTags.join('\n'))
+                            .setFooter({text: `${now}`, iconURL: interaction.client.user.displayAvatarURL()})
+                            .addFields({name: `Page ${page} of ${totalPages}`, value: '\u200B', inline: true});
+                    };
+
+                    const row = new ActionRowBuilder()
+                        .addComponents(
+                            new ButtonBuilder()
+                                .setCustomId('previous')
+                                .setLabel('⬅️')
+                                .setStyle(ButtonStyle.Primary)
+                                .setDisabled(true),
+                            new ButtonBuilder()
+                                .setCustomId('next')
+                                .setLabel('➡️')
+                                .setStyle(ButtonStyle.Primary)
+                                .setDisabled(totalPages <= 1)
+                        );
+
+                    logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase search_tags ${searchPrefix}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Page 1`);
+                    await interaction.reply({ embeds: [generateEmbed(1)], components: [row]});
+
+                    const filter = i => i.customId === 'previous' || i.customId === 'next';
+                    const collector = interaction.channel.createMessageComponentCollector({ filter, time: 60000 });
+
+                    let currentPage = 1;
+
+                    collector.on('collect', async i => {
+                        if (i.customId === 'previous') {
+                            currentPage--;
+                        } else if (i.customId === 'next') {
+                            currentPage++;
+                        }
+
+                        logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase search_tags ${searchPrefix}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Page ${currentPage}`);
+                        await i.update({
+                            embeds: [generateEmbed(currentPage)],
+                            components: [
+                                new ActionRowBuilder()
+                                    .addComponents(
+                                        new ButtonBuilder()
+                                            .setCustomId('previous')
+                                            .setLabel('⬅️')
+                                            .setStyle(ButtonStyle.Primary)
+                                            .setDisabled(currentPage === 1),
+                                        new ButtonBuilder()
+                                            .setCustomId('next')
+                                            .setLabel('➡️')
+                                            .setStyle(ButtonStyle.Primary)
+                                            .setDisabled(currentPage === totalPages)
+                                    )
+                            ]
+                        });
+                    });
+
+                    collector.on('end', collected => {
+                        interaction.editReply({ components: [] });
+                    });
+                } else {
+                    const errorText = await searchResponse.text();
+                    logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase search_tags ${searchPrefix}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Response Not OK: ${errorText}`);
+                    return interaction.reply({ content: `Failed to search tags with prefix \`${searchPrefix}\`.: ${searchResponse.statusText}`, ephemeral: true });
+                }
+            } catch (error) {
+                logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase search_tags ${searchPrefix}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
+                return interaction.reply({ content: `Error while searching tags with prefix \`${searchPrefix}\`.: ${error.message}`, ephemeral: true });
             }
         }
 
