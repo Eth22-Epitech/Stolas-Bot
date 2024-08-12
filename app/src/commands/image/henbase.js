@@ -606,16 +606,16 @@ module.exports = {
                 return interaction.reply({content: `${interaction.user.username} is not a Trusted User of Stolas Bot.`, ephemeral: true});
             }
 
-            await interaction.reply({ content: 'Fetching entry...', ephemeral: true });
+            await interaction.reply({ content: 'Fetching entry...'});
 
             const entry = await getEntryData(now, interaction, entryId);
 
             if (entry) {
                 logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase get_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Success`);
-                return interaction.reply({ embeds: [entry.embed], files: [entry.attachment] });
+                return interaction.editReply({ embeds: [entry.embed], files: [entry.attachment] });
             } else {
                 logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase get_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Failed to get entry ${entryId}`);
-                return interaction.reply({ content: `Failed to get entry \`${entryId}\`.`, ephemeral: true });
+                return interaction.editReply({ content: `Failed to get entry \`${entryId}\`.`, ephemeral: true });
             }
         }
 
