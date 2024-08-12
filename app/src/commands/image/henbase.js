@@ -61,13 +61,16 @@ async function getEntryData(now, interaction, entryId, current_index = -1, max_i
             // Calculate entry's size with correct unit
             let size = await formatSize(entryData.size);
 
+            // Sort tags alphabetically
+            const sortedTags = entryData.tags.sort();
+
             const embed = new EmbedBuilder()
                 .setColor('#6b048a')
                 .setAuthor({name: 'Stolas Bot by Eth22', iconURL: interaction.client.user.displayAvatarURL(), url: 'https://eth22.fr'})
                 .setTitle(`${underscore(`Henbase Entry ${entryData.id}:`)}`)
                 .addFields(
                     { name: `Name`, value: `${entryData.name}` },
-                    { name: 'Tags', value: `\`${entryData.tags.join(', ')}\`` || 'None' },
+                    { name: 'Tags', value: `\`${sortedTags.join(', ')}\`` || 'None' },
                     { name: 'Format & Extension', value: `${entryData.format} > \`.${entryData.extension}\``, inline: true },
                     { name: 'Size', value: `\`${size}\``, inline: true },
                 )
@@ -444,7 +447,7 @@ module.exports = {
 
                 if (response.ok) {
                     const data = await response.json();
-                    const tags = data.tags;
+                    const tags = data.tags.sort((a, b) => a.name.localeCompare(b.name));
                     const tagsPerPage = 10;
                     const totalPages = Math.ceil(tags.length / tagsPerPage);
 
@@ -727,9 +730,6 @@ module.exports = {
                     },
                     body: JSON.stringify(updatedTags),
                 });
-
-                const responseBody = await editResponse.json();
-                console.log(responseBody);
 
                 if (editResponse.ok) {
                     logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase add_tags_to_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Success`);
