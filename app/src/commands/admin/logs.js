@@ -30,7 +30,7 @@ module.exports = {
 
         if (interaction.options.getSubcommand() === 'get') {
             const linesNum = interaction.options.getInteger('lines');
-            const logFilePath = '/app/src/logs/stolas.log';
+            const logFilePath = '/app/logs/stolas.log';
 
             try {
                 const logData = fs.readFileSync(logFilePath, 'utf-8');
