@@ -176,6 +176,10 @@ module.exports = {
                 .addStringOption(option => option.setName('artist').setDescription('Artist of the entry')))
         .addSubcommand(subcommand =>
             subcommand
+                .setName('list_entries')
+                .setDescription('(Trusted Users) List all entries in the database'))
+        .addSubcommand(subcommand =>
+            subcommand
                 .setName('add_tags_to_entry')
                 .setDescription('(ADMIN) Add tags to an existing entry')
                 .addIntegerOption(option => option.setName('id').setDescription('Id of the entry').setRequired(true))
@@ -183,8 +187,8 @@ module.exports = {
         .addSubcommand(subcommand =>
             subcommand
                 .setName('search_entries')
-                .setDescription('Search the database for entries')
-                .addStringOption(option => option.setName('tags').setDescription('Tags to search for (separated by comma ",")').setRequired(true))
+                .setDescription('(Trusted User) Search the database for entries')
+                .addStringOption(option => option.setName('tags').setDescription('Tags to search for (separated by comma ",")'))
                 .addStringOption(option => option.setName('negative_tags').setDescription('(Optional) Tags to ban from the search (separated by comma ",")'))
                 .addStringOption(option => option.setName('format').setDescription(`(Optional) File format to search for`).addChoices(
                     { name: 'Image', value: 'image' },
@@ -195,7 +199,7 @@ module.exports = {
         .addSubcommand(subcommand =>
             subcommand
                 .setName('search_random_entry')
-                .setDescription('Search the database for a random entry matching the search terms')
+                .setDescription('(Trusted User) Search the database for a random entry matching the search terms')
                 .addStringOption(option => option.setName('tags').setDescription('Tags to search for (separated by comma ",")').setRequired(true))
                 .addStringOption(option => option.setName('negative_tags').setDescription('(Optional) Tags to ban from the search (separated by comma ",")'))
                 .addStringOption(option => option.setName('format').setDescription(`(Optional) File format to search for`).addChoices(
@@ -208,7 +212,11 @@ module.exports = {
             subcommand
                 .setName('search_tags')
                 .setDescription('(Trusted User) Search for tags with the given prefix')
-                .addStringOption(option => option.setName('search').setDescription('Prefix to search tags starting with it').setRequired(true))),
+                .addStringOption(option => option.setName('search').setDescription('Prefix to search tags starting with it').setRequired(true)))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('stats_general')
+                .setDescription('(Trusted User) Give general information about the database')),
 
     async execute(interaction) {
         const now = moment().format('MM/DD/YYYY HH:mm:ss');
@@ -448,7 +456,7 @@ module.exports = {
 
             if (!trusted_users.includes(interaction.user.id)) {
                 logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase list_tags' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT ADMIN`);
-                return interaction.reply({content: `You are not an Admin of Stolas Bot.`, ephemeral: true});
+                return interaction.reply({content: `You are not a Trusted User of Stolas Bot.`, ephemeral: true});
             }
 
             const command_url = `${henbase_url}/listTags`;
@@ -705,6 +713,113 @@ module.exports = {
             } catch (error) {
                 logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase edit_entry ${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
                 return interaction.reply({ content: `Error while editing entry \`${entryId}\`.: ${error.message}`, ephemeral: true });
+            }
+        }
+
+        // List Entries
+        else if (interaction.options.getSubcommand() === 'list_entries') {
+
+            if (!trusted_users.includes(interaction.user.id)) {
+                logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase list_entries' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT Trusted User`);
+                return interaction.reply({content: `You are not a Trusted User of Stolas Bot.`, ephemeral: true});
+            }
+
+            const command_url = `${henbase_url}/listEntries`;
+
+            try {
+                const response = await fetch(command_url, {
+                    method: 'GET',
+                    headers: {
+                        'accept': 'application/json',
+                        'api-key': henbase_key,
+                    },
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const entries = data.entries.sort((a, b) => a.id - b.id);
+                    const entriesPerPage = 10;
+                    const totalPages = Math.ceil(entries.length / entriesPerPage);
+
+                    const generateEmbed = (page) => {
+                        const start = (page - 1) * entriesPerPage;
+                        const end = start + entriesPerPage;
+                        const pageEntries = entries.slice(start, end).map(entry => `**${entry.id}** - ${entry.name} - ${entry.artist}`);
+
+                        return new EmbedBuilder()
+                            .setColor('#6b048a')
+                            .setAuthor({
+                                name: 'Stolas Bot by Eth22',
+                                iconURL: interaction.client.user.displayAvatarURL(),
+                                url: 'https://eth22.fr'
+                            })
+                            .setTitle('Henbase Entries List')
+                            .setDescription(pageEntries.join('\n'))
+                            .setFooter({text: `${now}`, iconURL: interaction.client.user.displayAvatarURL()})
+                            .addFields({name: 'ID - Name - Artist', value: `**Page ${page} of ${totalPages}**`, inline: true});
+                    };
+
+                    const row = new ActionRowBuilder()
+                        .addComponents(
+                            new ButtonBuilder()
+                                .setCustomId('previous')
+                                .setLabel('⬅️')
+                                .setStyle(ButtonStyle.Primary)
+                                .setDisabled(true),
+                            new ButtonBuilder()
+                                .setCustomId('next')
+                                .setLabel('➡️')
+                                .setStyle(ButtonStyle.Primary)
+                                .setDisabled(totalPages <= 1)
+                        );
+
+                    logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase list_entries' in '${interaction.guild.name} #${interaction.channel.name}' issued => Page 1`);
+                    await interaction.reply({ embeds: [generateEmbed(1)], components: [row]});
+
+                    const filter = i => i.customId === 'previous' || i.customId === 'next';
+                    const collector = interaction.channel.createMessageComponentCollector({ filter, time: 60000 });
+
+                    let currentPage = 1;
+
+                    collector.on('collect', async i => {
+                        if (i.customId === 'previous') {
+                            currentPage--;
+                        } else if (i.customId === 'next') {
+                            currentPage++;
+                        }
+
+                        logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase list_entries' in '${interaction.guild.name} #${interaction.channel.name}' issued => Page ${currentPage}`);
+                        await i.update({
+                            embeds: [generateEmbed(currentPage)],
+                            components: [
+                                new ActionRowBuilder()
+                                    .addComponents(
+                                        new ButtonBuilder()
+                                            .setCustomId('previous')
+                                            .setLabel('⬅️')
+                                            .setStyle(ButtonStyle.Primary)
+                                            .setDisabled(currentPage === 1),
+                                        new ButtonBuilder()
+                                            .setCustomId('next')
+                                            .setLabel('➡️')
+                                            .setStyle(ButtonStyle.Primary)
+                                            .setDisabled(currentPage === totalPages)
+                                    )
+                            ]
+                        });
+                    });
+
+                    collector.on('end', collected => {
+                        interaction.editReply({ components: [] });
+                    });
+                } else {
+                    const errorText = await response.text();
+                    logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase list_entries' in '${interaction.guild.name} #${interaction.channel.name}' issued => Response Not OK: ${errorText}`);
+                    return interaction.reply({ content: `Failed to list all entries: ${response.statusText}`, ephemeral: true });
+                }
+            } catch (error) {
+                logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase list_entries' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
+                return interaction.reply({ content: `Error while listing all entries: ${error.message}`, ephemeral: true });
             }
         }
 
@@ -1127,6 +1242,62 @@ module.exports = {
             } catch (error) {
                 logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase search_tags ${searchPrefix}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
                 return interaction.reply({ content: `Error while searching tags with prefix \`${searchPrefix}\`.: ${error.message}`, ephemeral: true });
+            }
+        }
+
+        // Stats general
+        else if (interaction.options.getSubcommand() === 'stats_general') {
+            if (!admin_users.includes(interaction.user.id)) {
+                logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase stats_general' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT ADMIN`);
+                return interaction.reply({content: `You are not an Admin of Stolas Bot.`, ephemeral: true});
+            }
+
+            const command_url = `${henbase_url}/stats/general`;
+
+            try {
+                const response = await fetch(command_url, {
+                    method: 'GET',
+                    headers: {
+                        'accept': 'application/json',
+                        'api-key': henbase_key,
+                    },
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const stats = data.stats;
+
+                    const formattedSize = await formatSize(stats.total_size);
+
+                    const embed = new EmbedBuilder()
+                        .setColor('#6b048a')
+                        .setAuthor({
+                            name: 'Stolas Bot by Eth22',
+                            iconURL: interaction.client.user.displayAvatarURL(),
+                            url: 'https://eth22.fr'
+                        })
+                        .setTitle('Henbase General Stats')
+                        .addFields(
+                            { name: 'Number of Entries', value: `${stats.num_entries}`, inline: true },
+                            { name: 'Number of Tags', value: `${stats.num_tags}`, inline: true },
+                            { name: 'Number of Artists', value: `${stats.num_artists}`, inline: true },
+                            { name: 'Number of Images', value: `${stats.num_images}`, inline: true },
+                            { name: 'Number of GIFs', value: `${stats.num_gifs}`, inline: true },
+                            { name: 'Number of Videos', value: `${stats.num_videos}`, inline: true },
+                            { name: 'Total Size', value: `${formattedSize}`, inline: true }
+                        )
+                        .setFooter({text: `${now}`, iconURL: interaction.client.user.displayAvatarURL()});
+
+                    logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase stats_general' in '${interaction.guild.name} #${interaction.channel.name}' issued => Success`);
+                    return interaction.reply({ embeds: [embed]});
+                } else {
+                    const errorText = await response.text();
+                    logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase stats_general' in '${interaction.guild.name} #${interaction.channel.name}' issued => Response Not OK: ${errorText}`);
+                    return interaction.reply({ content: `Failed to fetch general stats: ${response.statusText}`, ephemeral: true });
+                }
+            } catch (error) {
+                logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase stats_general' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
+                return interaction.reply({ content: `Error while fetching general stats: ${error.message}`, ephemeral: true });
             }
         }
 
