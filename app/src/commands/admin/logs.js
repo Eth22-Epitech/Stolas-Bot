@@ -30,7 +30,7 @@ module.exports = {
 
         if (interaction.options.getSubcommand() === 'get') {
             const linesNum = interaction.options.getInteger('lines');
-            const logFilePath = path.join(__dirname, '../../logs/stolas.log');
+            const logFilePath = '/app/src/logs/stolas.log';
 
             try {
                 const logData = fs.readFileSync(logFilePath, 'utf-8');
@@ -49,7 +49,7 @@ module.exports = {
                 return interaction.reply({ content: `Sent the last ${linesNum} lines of the log to your DMs.`, ephemeral: true });
             } catch (error) {
                 logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/logs get ${linesNum}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error while reading logs file.`);
-                return interaction.reply({ content: `Failed to read the log file.`, ephemeral: true });
+                return interaction.reply({ content: `Failed to read the log file: ${error}.`, ephemeral: true });
             }
         } else {
             return interaction.reply({content: `Error? BAD`, ephemeral: true});
