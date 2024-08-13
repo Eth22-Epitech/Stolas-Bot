@@ -216,7 +216,11 @@ module.exports = {
         .addSubcommand(subcommand =>
             subcommand
                 .setName('stats_general')
-                .setDescription('(Trusted User) Give general information about the database')),
+                .setDescription('(Trusted User) Give general information about the database'))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('stats_tags')
+                .setDescription('(Trusted User) Give tags information about the database such as amount of entries and percentages')),
 
     async execute(interaction) {
         const now = moment().format('MM/DD/YYYY HH:mm:ss');
@@ -512,7 +516,7 @@ module.exports = {
                     await interaction.reply({ embeds: [generateEmbed(1)], components: [row]});
 
                     const filter = i => i.customId === 'previous' || i.customId === 'next';
-                    const collector = interaction.channel.createMessageComponentCollector({ filter, time: 60000 });
+                    const collector = interaction.channel.createMessageComponentCollector({ filter, time: 120000 });
 
                     let currentPage = 1;
 
@@ -777,7 +781,7 @@ module.exports = {
                     await interaction.reply({ embeds: [generateEmbed(1)], components: [row]});
 
                     const filter = i => i.customId === 'previous' || i.customId === 'next';
-                    const collector = interaction.channel.createMessageComponentCollector({ filter, time: 60000 });
+                    const collector = interaction.channel.createMessageComponentCollector({ filter, time: 120000 });
 
                     let currentPage = 1;
 
@@ -972,7 +976,7 @@ module.exports = {
                     await displayEntry(currentIndex, entryIds.length);
 
                     const filter = i => i.user.id === interaction.user.id;
-                    const collector = interaction.channel.createMessageComponentCollector({ filter, time: 60000 });
+                    const collector = interaction.channel.createMessageComponentCollector({ filter, time: 120000 });
 
                     collector.on('collect', async i => {
                         if (i.customId === 'prev' && currentIndex > 0) {
@@ -1076,7 +1080,7 @@ module.exports = {
                             await interaction.editReply({ embeds: [embed], files: [attachment], components: [row] });
 
                             const filter = i => i.customId === 'reroll' && i.user.id === interaction.user.id;
-                            const collector = interaction.channel.createMessageComponentCollector({ filter, time: 60000 });
+                            const collector = interaction.channel.createMessageComponentCollector({ filter, time: 120000 });
 
                             collector.on('collect', async i => {
                                 if (i.customId === 'reroll') {
@@ -1199,7 +1203,7 @@ module.exports = {
                     await interaction.reply({ embeds: [generateEmbed(1)], components: [row]});
 
                     const filter = i => i.customId === 'previous' || i.customId === 'next';
-                    const collector = interaction.channel.createMessageComponentCollector({ filter, time: 60000 });
+                    const collector = interaction.channel.createMessageComponentCollector({ filter, time: 120000 });
 
                     let currentPage = 1;
 
@@ -1298,6 +1302,112 @@ module.exports = {
             } catch (error) {
                 logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase stats_general' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
                 return interaction.reply({ content: `Error while fetching general stats: ${error.message}`, ephemeral: true });
+            }
+        }
+
+        // Stats tags
+        else if (interaction.options.getSubcommand() === 'stats_tags') {
+            if (!admin_users.includes(interaction.user.id)) {
+                logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase stats_general' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT ADMIN`);
+                return interaction.reply({content: `You are not an Admin of Stolas Bot.`, ephemeral: true});
+            }
+
+            const command_url = `${henbase_url}/stats/tags`;
+
+            try {
+                const response = await fetch(command_url, {
+                    method: 'GET',
+                    headers: {
+                        'accept': 'application/json',
+                        'api-key': henbase_key,
+                    },
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const stats = data.stats.sort((a, b) => b.count - a.count);
+                    const tagsPerPage = 10;
+                    const totalPages = Math.ceil(stats.length / tagsPerPage);
+
+                    const generateEmbed = (page) => {
+                        const start = (page - 1) * tagsPerPage;
+                        const end = start + tagsPerPage;
+                        const pageTags = stats.slice(start, end).map(tag => `${tag.count} : ${tag.percentage}% - \`${tag.tag}\``);
+
+                        return new EmbedBuilder()
+                            .setColor('#6b048a')
+                            .setAuthor({
+                                name: 'Stolas Bot by Eth22',
+                                iconURL: interaction.client.user.displayAvatarURL(),
+                                url: 'https://eth22.fr'
+                            })
+                            .setTitle('Henbase Tags Stats')
+                            .setDescription(pageTags.join('\n'))
+                            .setFooter({text: `${now}`, iconURL: interaction.client.user.displayAvatarURL()})
+                            .addFields({name: `Page ${page} of ${totalPages}`, value: '\u200B', inline: true});
+                    };
+
+                    const row = new ActionRowBuilder()
+                        .addComponents(
+                            new ButtonBuilder()
+                                .setCustomId('previous')
+                                .setLabel('⬅️')
+                                .setStyle(ButtonStyle.Primary)
+                                .setDisabled(true),
+                            new ButtonBuilder()
+                                .setCustomId('next')
+                                .setLabel('➡️')
+                                .setStyle(ButtonStyle.Primary)
+                                .setDisabled(totalPages <= 1)
+                        );
+
+                    logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase stats_tags' in '${interaction.guild.name} #${interaction.channel.name}' issued => Page 1`);
+                    await interaction.reply({ embeds: [generateEmbed(1)], components: [row] });
+
+                    const filter = i => i.customId === 'previous' || i.customId === 'next';
+                    const collector = interaction.channel.createMessageComponentCollector({ filter, time: 120000 });
+
+                    let currentPage = 1;
+
+                    collector.on('collect', async i => {
+                        if (i.customId === 'previous') {
+                            currentPage--;
+                        } else if (i.customId === 'next') {
+                            currentPage++;
+                        }
+
+                        logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase stats_tags' in '${interaction.guild.name} #${interaction.channel.name}' issued => Page ${currentPage}`);
+                        await i.update({
+                            embeds: [generateEmbed(currentPage)],
+                            components: [
+                                new ActionRowBuilder()
+                                    .addComponents(
+                                        new ButtonBuilder()
+                                            .setCustomId('previous')
+                                            .setLabel('⬅️')
+                                            .setStyle(ButtonStyle.Primary)
+                                            .setDisabled(currentPage === 1),
+                                        new ButtonBuilder()
+                                            .setCustomId('next')
+                                            .setLabel('➡️')
+                                            .setStyle(ButtonStyle.Primary)
+                                            .setDisabled(currentPage === totalPages)
+                                    )
+                            ]
+                        });
+                    });
+
+                    collector.on('end', collected => {
+                        interaction.editReply({ components: [] });
+                    });
+                } else {
+                    const errorText = await response.text();
+                    logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase stats_tags' in '${interaction.guild.name} #${interaction.channel.name}' issued => Response Not OK: ${errorText}`);
+                    return interaction.reply({ content: `Failed to fetch tags stats: ${response.statusText}`, ephemeral: true });
+                }
+            } catch (error) {
+                logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase stats_tags' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
+                return interaction.reply({ content: `Error while fetching tags stats: ${error.message}`, ephemeral: true });
             }
         }
 
