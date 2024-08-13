@@ -177,7 +177,8 @@ module.exports = {
         .addSubcommand(subcommand =>
             subcommand
                 .setName('list_entries')
-                .setDescription('(Trusted Users) List all entries in the database'))
+                .setDescription('(Trusted Users) List all entries in the database')
+                .addIntegerOption(option => option.setName('page').setDescription('Page to start displaying the entries')))
         .addSubcommand(subcommand =>
             subcommand
                 .setName('add_tags_to_entry')
@@ -200,7 +201,7 @@ module.exports = {
             subcommand
                 .setName('search_random_entry')
                 .setDescription('(Trusted User) Search the database for a random entry matching the search terms')
-                .addStringOption(option => option.setName('tags').setDescription('Tags to search for (separated by comma ",")').setRequired(true))
+                .addStringOption(option => option.setName('tags').setDescription('Tags to search for (separated by comma ",")'))
                 .addStringOption(option => option.setName('negative_tags').setDescription('(Optional) Tags to ban from the search (separated by comma ",")'))
                 .addStringOption(option => option.setName('format').setDescription(`(Optional) File format to search for`).addChoices(
                     { name: 'Image', value: 'image' },
@@ -220,7 +221,8 @@ module.exports = {
         .addSubcommand(subcommand =>
             subcommand
                 .setName('stats_tags')
-                .setDescription('(Trusted User) Give tags information about the database such as amount of entries and percentages')),
+                .setDescription('(Trusted User) Give tags information about the database such as amount of entries and percentages')
+                .addIntegerOption(option => option.setName('page').setDescription('Page to start displaying the stats'))),
 
     async execute(interaction) {
         const now = moment().format('MM/DD/YYYY HH:mm:ss');
@@ -722,6 +724,7 @@ module.exports = {
 
         // List Entries
         else if (interaction.options.getSubcommand() === 'list_entries') {
+            const startPage = interaction.options.getInteger('page') || 1;
 
             if (!trusted_users.includes(interaction.user.id)) {
                 logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase list_entries' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT Trusted User`);
@@ -744,6 +747,10 @@ module.exports = {
                     const entries = data.entries.sort((a, b) => a.id - b.id);
                     const entriesPerPage = 10;
                     const totalPages = Math.ceil(entries.length / entriesPerPage);
+
+                    if (startPage < 1 || startPage > totalPages) {
+                        return interaction.reply({ content: `Invalid page number. Please enter a number between 1 and ${totalPages}.`, ephemeral: true });
+                    }
 
                     const generateEmbed = (page) => {
                         const start = (page - 1) * entriesPerPage;
@@ -769,21 +776,21 @@ module.exports = {
                                 .setCustomId('previous')
                                 .setLabel('⬅️')
                                 .setStyle(ButtonStyle.Primary)
-                                .setDisabled(true),
+                                .setDisabled(startPage === 1),
                             new ButtonBuilder()
                                 .setCustomId('next')
                                 .setLabel('➡️')
                                 .setStyle(ButtonStyle.Primary)
-                                .setDisabled(totalPages <= 1)
+                                .setDisabled(startPage === totalPages)
                         );
 
-                    logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase list_entries' in '${interaction.guild.name} #${interaction.channel.name}' issued => Page 1`);
-                    await interaction.reply({ embeds: [generateEmbed(1)], components: [row]});
+                    logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase list_entries' in '${interaction.guild.name} #${interaction.channel.name}' issued => Page ${startPage}`);
+                    await interaction.reply({ embeds: [generateEmbed(startPage)], components: [row]});
 
                     const filter = i => i.customId === 'previous' || i.customId === 'next';
                     const collector = interaction.channel.createMessageComponentCollector({ filter, time: 120000 });
 
-                    let currentPage = 1;
+                    let currentPage = startPage;
 
                     collector.on('collect', async i => {
                         if (i.customId === 'previous') {
@@ -1307,6 +1314,8 @@ module.exports = {
 
         // Stats tags
         else if (interaction.options.getSubcommand() === 'stats_tags') {
+            const startPage = interaction.options.getInteger('page') || 1;
+
             if (!admin_users.includes(interaction.user.id)) {
                 logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase stats_general' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT ADMIN`);
                 return interaction.reply({content: `You are not an Admin of Stolas Bot.`, ephemeral: true});
@@ -1328,6 +1337,10 @@ module.exports = {
                     const stats = data.stats.sort((a, b) => b.count - a.count);
                     const tagsPerPage = 10;
                     const totalPages = Math.ceil(stats.length / tagsPerPage);
+
+                    if (startPage < 1 || startPage > totalPages) {
+                        return interaction.reply({ content: `Invalid page number. Please enter a number between 1 and ${totalPages}.`, ephemeral: true });
+                    }
 
                     const generateEmbed = (page) => {
                         const start = (page - 1) * tagsPerPage;
@@ -1356,21 +1369,21 @@ module.exports = {
                                 .setCustomId('previous')
                                 .setLabel('⬅️')
                                 .setStyle(ButtonStyle.Primary)
-                                .setDisabled(true),
+                                .setDisabled(startPage === 1),
                             new ButtonBuilder()
                                 .setCustomId('next')
                                 .setLabel('➡️')
                                 .setStyle(ButtonStyle.Primary)
-                                .setDisabled(totalPages <= 1)
+                                .setDisabled(startPage === totalPages)
                         );
 
-                    logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase stats_tags' in '${interaction.guild.name} #${interaction.channel.name}' issued => Page 1`);
-                    await interaction.reply({ embeds: [generateEmbed(1)], components: [row] });
+                    logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase stats_tags' in '${interaction.guild.name} #${interaction.channel.name}' issued => Page ${startPage}`);
+                    await interaction.reply({ embeds: [generateEmbed(startPage)], components: [row] });
 
                     const filter = i => i.customId === 'previous' || i.customId === 'next';
                     const collector = interaction.channel.createMessageComponentCollector({ filter, time: 120000 });
 
-                    let currentPage = 1;
+                    let currentPage = startPage;
 
                     collector.on('collect', async i => {
                         if (i.customId === 'previous') {
