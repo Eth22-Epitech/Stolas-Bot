@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const { bold, italic, strikethrough, underscore, spoiler, quote, blockQuote, inlineCode, codeBlock } = require('discord.js');
 const logger = require('../../logger.js');
+const { v4: uuidv4 } = require('uuid');
 const { henbase_url, henbase_key, henbase_admin_key, trusted_users, admin_users } = require('../../config.json');
 const moment = require('moment');
 
@@ -481,6 +482,7 @@ module.exports = {
                     const tags = data.tags.sort((a, b) => a.name.localeCompare(b.name));
                     const tagsPerPage = 10;
                     const totalPages = Math.ceil(tags.length / tagsPerPage);
+                    const uniqueId = uuidv4(); // Generate a unique identifier
 
                     const generateEmbed = (page) => {
                         const start = (page - 1) * tagsPerPage;
@@ -500,53 +502,41 @@ module.exports = {
                             .addFields({name: `Page ${page} of ${totalPages}`, value: '\u200B', inline: true});
                     };
 
-                    const row = new ActionRowBuilder()
-                        .addComponents(
-                            new ButtonBuilder()
-                                .setCustomId('previous')
-                                .setLabel('⬅️')
-                                .setStyle(ButtonStyle.Primary)
-                                .setDisabled(true),
-                            new ButtonBuilder()
-                                .setCustomId('next')
-                                .setLabel('➡️')
-                                .setStyle(ButtonStyle.Primary)
-                                .setDisabled(totalPages <= 1)
-                        );
+                    const createButtonRow = (currentPage, totalPages, uniqueId) => {
+                        return new ActionRowBuilder()
+                            .addComponents(
+                                new ButtonBuilder()
+                                    .setCustomId(`previous_${uniqueId}`)
+                                    .setLabel('⬅️')
+                                    .setStyle(ButtonStyle.Primary)
+                                    .setDisabled(currentPage === 1),
+                                new ButtonBuilder()
+                                    .setCustomId(`next_${uniqueId}`)
+                                    .setLabel('➡️')
+                                    .setStyle(ButtonStyle.Primary)
+                                    .setDisabled(currentPage === totalPages)
+                            );
+                    };
 
                     logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase list_tags' in '${interaction.guild.name} #${interaction.channel.name}' issued => Page 1`);
-                    await interaction.reply({ embeds: [generateEmbed(1)], components: [row]});
+                    await interaction.reply({ embeds: [generateEmbed(1)], components: [createButtonRow(1, totalPages, uniqueId)]});
 
-                    const filter = i => i.customId === 'previous' || i.customId === 'next';
+                    const filter = i => (i.customId === `previous_${uniqueId}` || i.customId === `next_${uniqueId}`) && i.user.id === interaction.user.id;
                     const collector = interaction.channel.createMessageComponentCollector({ filter, time: 120000 });
 
                     let currentPage = 1;
 
                     collector.on('collect', async i => {
-                        if (i.customId === 'previous') {
+                        if (i.customId === `previous_${uniqueId}`) {
                             currentPage--;
-                        } else if (i.customId === 'next') {
+                        } else if (i.customId === `next_${uniqueId}`) {
                             currentPage++;
                         }
 
                         logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase list_tags' in '${interaction.guild.name} #${interaction.channel.name}' issued => Page ${currentPage}`);
                         await i.update({
                             embeds: [generateEmbed(currentPage)],
-                            components: [
-                                new ActionRowBuilder()
-                                    .addComponents(
-                                        new ButtonBuilder()
-                                            .setCustomId('previous')
-                                            .setLabel('⬅️')
-                                            .setStyle(ButtonStyle.Primary)
-                                            .setDisabled(currentPage === 1),
-                                        new ButtonBuilder()
-                                            .setCustomId('next')
-                                            .setLabel('➡️')
-                                            .setStyle(ButtonStyle.Primary)
-                                            .setDisabled(currentPage === totalPages)
-                                    )
-                            ]
+                            components: [createButtonRow(currentPage, totalPages, uniqueId)]
                         });
                     });
 
@@ -747,6 +737,7 @@ module.exports = {
                     const entries = data.entries.sort((a, b) => a.id - b.id);
                     const entriesPerPage = 10;
                     const totalPages = Math.ceil(entries.length / entriesPerPage);
+                    const uniqueId = uuidv4(); // Generate a unique identifier
 
                     if (startPage < 1 || startPage > totalPages) {
                         return interaction.reply({ content: `Invalid page number. Please enter a number between 1 and ${totalPages}.`, ephemeral: true });
@@ -770,53 +761,41 @@ module.exports = {
                             .addFields({name: 'ID - Name - Artist', value: `**Page ${page} of ${totalPages}**`, inline: true});
                     };
 
-                    const row = new ActionRowBuilder()
-                        .addComponents(
-                            new ButtonBuilder()
-                                .setCustomId('previous')
-                                .setLabel('⬅️')
-                                .setStyle(ButtonStyle.Primary)
-                                .setDisabled(startPage === 1),
-                            new ButtonBuilder()
-                                .setCustomId('next')
-                                .setLabel('➡️')
-                                .setStyle(ButtonStyle.Primary)
-                                .setDisabled(startPage === totalPages)
-                        );
+                    const createButtonRow = (currentPage, totalPages, uniqueId) => {
+                        return new ActionRowBuilder()
+                            .addComponents(
+                                new ButtonBuilder()
+                                    .setCustomId(`previous_${uniqueId}`)
+                                    .setLabel('⬅️')
+                                    .setStyle(ButtonStyle.Primary)
+                                    .setDisabled(currentPage === 1),
+                                new ButtonBuilder()
+                                    .setCustomId(`next_${uniqueId}`)
+                                    .setLabel('➡️')
+                                    .setStyle(ButtonStyle.Primary)
+                                    .setDisabled(currentPage === totalPages)
+                            );
+                    };
 
                     logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase list_entries' in '${interaction.guild.name} #${interaction.channel.name}' issued => Page ${startPage}`);
-                    await interaction.reply({ embeds: [generateEmbed(startPage)], components: [row]});
+                    await interaction.reply({ embeds: [generateEmbed(startPage)], components: [createButtonRow(startPage, totalPages, uniqueId)]});
 
-                    const filter = i => i.customId === 'previous' || i.customId === 'next';
+                    const filter = i => (i.customId === `previous_${uniqueId}` || i.customId === `next_${uniqueId}`) && i.user.id === interaction.user.id;
                     const collector = interaction.channel.createMessageComponentCollector({ filter, time: 120000 });
 
                     let currentPage = startPage;
 
                     collector.on('collect', async i => {
-                        if (i.customId === 'previous') {
+                        if (i.customId === `previous_${uniqueId}`) {
                             currentPage--;
-                        } else if (i.customId === 'next') {
+                        } else if (i.customId === `next_${uniqueId}`) {
                             currentPage++;
                         }
 
                         logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase list_entries' in '${interaction.guild.name} #${interaction.channel.name}' issued => Page ${currentPage}`);
                         await i.update({
                             embeds: [generateEmbed(currentPage)],
-                            components: [
-                                new ActionRowBuilder()
-                                    .addComponents(
-                                        new ButtonBuilder()
-                                            .setCustomId('previous')
-                                            .setLabel('⬅️')
-                                            .setStyle(ButtonStyle.Primary)
-                                            .setDisabled(currentPage === 1),
-                                        new ButtonBuilder()
-                                            .setCustomId('next')
-                                            .setLabel('➡️')
-                                            .setStyle(ButtonStyle.Primary)
-                                            .setDisabled(currentPage === totalPages)
-                                    )
-                            ]
+                            components: [createButtonRow(currentPage, totalPages, uniqueId)]
                         });
                     });
 
@@ -953,6 +932,7 @@ module.exports = {
                     }
 
                     let currentIndex = 0;
+                    const uniqueId = uuidv4(); // Generate a unique identifier
 
                     const displayEntry = async (index, maxIndex) => {
                         const entry = await getEntryData(now, interaction, entryIds[index], index, maxIndex);
@@ -966,12 +946,12 @@ module.exports = {
                     const navigationRow = new ActionRowBuilder()
                         .addComponents(
                             new ButtonBuilder()
-                                .setCustomId('prev')
+                                .setCustomId(`prev_${uniqueId}`)
                                 .setLabel('⬅️')
                                 .setStyle(ButtonStyle.Primary)
                                 .setDisabled(currentIndex === 0),
                             new ButtonBuilder()
-                                .setCustomId('next')
+                                .setCustomId(`next_${uniqueId}`)
                                 .setLabel('➡️')
                                 .setStyle(ButtonStyle.Primary)
                                 .setDisabled(currentIndex === entryIds.length - 1)
@@ -982,13 +962,13 @@ module.exports = {
                     });
                     await displayEntry(currentIndex, entryIds.length);
 
-                    const filter = i => i.user.id === interaction.user.id;
+                    const filter = i => (i.customId === `prev_${uniqueId}` || i.customId === `next_${uniqueId}`) && i.user.id === interaction.user.id;
                     const collector = interaction.channel.createMessageComponentCollector({ filter, time: 120000 });
 
                     collector.on('collect', async i => {
-                        if (i.customId === 'prev' && currentIndex > 0) {
+                        if (i.customId === `prev_${uniqueId}` && currentIndex > 0) {
                             currentIndex--;
-                        } else if (i.customId === 'next' && currentIndex < entryIds.length - 1) {
+                        } else if (i.customId === `next_${uniqueId}` && currentIndex < entryIds.length - 1) {
                             currentIndex++;
                         }
 
@@ -1050,8 +1030,10 @@ module.exports = {
             // Remove the trailing '&' or '?' if no parameters were added
             command_url = command_url.slice(0, -1);
 
+            const uniqueId = uuidv4(); // Generate a unique identifier
+
             const rerollButton = new ButtonBuilder()
-                .setCustomId('reroll')
+                .setCustomId(`reroll_${uniqueId}`)
                 .setLabel('🔄')
                 .setStyle(ButtonStyle.Primary);
 
@@ -1086,11 +1068,11 @@ module.exports = {
                             logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase search_random_entry' in '${interaction.guild.name} #${interaction.channel.name}' issued => Entry ${entry[0]}`);
                             await interaction.editReply({ embeds: [embed], files: [attachment], components: [row] });
 
-                            const filter = i => i.customId === 'reroll' && i.user.id === interaction.user.id;
+                            const filter = i => i.customId === `reroll_${uniqueId}` && i.user.id === interaction.user.id;
                             const collector = interaction.channel.createMessageComponentCollector({ filter, time: 120000 });
 
                             collector.on('collect', async i => {
-                                if (i.customId === 'reroll') {
+                                if (i.customId === `reroll_${uniqueId}`) {
                                     // Fetch new entry data from the API
                                     const newResponse = await fetch(command_url, {
                                         method: 'GET',
@@ -1173,6 +1155,7 @@ module.exports = {
                     const foundTags = searchData.tags.sort((a, b) => a.localeCompare(b));
                     const tagsPerPage = 10;
                     const totalPages = Math.ceil(foundTags.length / tagsPerPage);
+                    const uniqueId = uuidv4(); // Generate a unique identifier
 
                     const generateEmbed = (page) => {
                         const start = (page - 1) * tagsPerPage;
@@ -1195,12 +1178,12 @@ module.exports = {
                     const row = new ActionRowBuilder()
                         .addComponents(
                             new ButtonBuilder()
-                                .setCustomId('previous')
+                                .setCustomId(`previous_${uniqueId}`)
                                 .setLabel('⬅️')
                                 .setStyle(ButtonStyle.Primary)
                                 .setDisabled(true),
                             new ButtonBuilder()
-                                .setCustomId('next')
+                                .setCustomId(`next_${uniqueId}`)
                                 .setLabel('➡️')
                                 .setStyle(ButtonStyle.Primary)
                                 .setDisabled(totalPages <= 1)
@@ -1209,15 +1192,15 @@ module.exports = {
                     logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase search_tags ${searchPrefix}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Page 1`);
                     await interaction.reply({ embeds: [generateEmbed(1)], components: [row]});
 
-                    const filter = i => i.customId === 'previous' || i.customId === 'next';
+                    const filter = i => (i.customId === `previous_${uniqueId}` || i.customId === `next_${uniqueId}`) && i.user.id === interaction.user.id;
                     const collector = interaction.channel.createMessageComponentCollector({ filter, time: 120000 });
 
                     let currentPage = 1;
 
                     collector.on('collect', async i => {
-                        if (i.customId === 'previous') {
+                        if (i.customId === `previous_${uniqueId}`) {
                             currentPage--;
-                        } else if (i.customId === 'next') {
+                        } else if (i.customId === `next_${uniqueId}`) {
                             currentPage++;
                         }
 
@@ -1228,12 +1211,12 @@ module.exports = {
                                 new ActionRowBuilder()
                                     .addComponents(
                                         new ButtonBuilder()
-                                            .setCustomId('previous')
+                                            .setCustomId(`previous_${uniqueId}`)
                                             .setLabel('⬅️')
                                             .setStyle(ButtonStyle.Primary)
                                             .setDisabled(currentPage === 1),
                                         new ButtonBuilder()
-                                            .setCustomId('next')
+                                            .setCustomId(`next_${uniqueId}`)
                                             .setLabel('➡️')
                                             .setStyle(ButtonStyle.Primary)
                                             .setDisabled(currentPage === totalPages)
@@ -1337,6 +1320,7 @@ module.exports = {
                     const stats = data.stats.sort((a, b) => b.count - a.count);
                     const tagsPerPage = 10;
                     const totalPages = Math.ceil(stats.length / tagsPerPage);
+                    const uniqueId = uuidv4(); // Generate a unique identifier
 
                     if (startPage < 1 || startPage > totalPages) {
                         return interaction.reply({ content: `Invalid page number. Please enter a number between 1 and ${totalPages}.`, ephemeral: true });
@@ -1366,12 +1350,12 @@ module.exports = {
                     const row = new ActionRowBuilder()
                         .addComponents(
                             new ButtonBuilder()
-                                .setCustomId('previous')
+                                .setCustomId(`previous_${uniqueId}`)
                                 .setLabel('⬅️')
                                 .setStyle(ButtonStyle.Primary)
                                 .setDisabled(startPage === 1),
                             new ButtonBuilder()
-                                .setCustomId('next')
+                                .setCustomId(`next_${uniqueId}`)
                                 .setLabel('➡️')
                                 .setStyle(ButtonStyle.Primary)
                                 .setDisabled(startPage === totalPages)
@@ -1380,15 +1364,15 @@ module.exports = {
                     logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase stats_tags' in '${interaction.guild.name} #${interaction.channel.name}' issued => Page ${startPage}`);
                     await interaction.reply({ embeds: [generateEmbed(startPage)], components: [row] });
 
-                    const filter = i => i.customId === 'previous' || i.customId === 'next';
+                    const filter = i => (i.customId === `previous_${uniqueId}` || i.customId === `next_${uniqueId}`) && i.user.id === interaction.user.id;
                     const collector = interaction.channel.createMessageComponentCollector({ filter, time: 120000 });
 
                     let currentPage = startPage;
 
                     collector.on('collect', async i => {
-                        if (i.customId === 'previous') {
+                        if (i.customId === `previous_${uniqueId}`) {
                             currentPage--;
-                        } else if (i.customId === 'next') {
+                        } else if (i.customId === `next_${uniqueId}`) {
                             currentPage++;
                         }
 
@@ -1399,12 +1383,12 @@ module.exports = {
                                 new ActionRowBuilder()
                                     .addComponents(
                                         new ButtonBuilder()
-                                            .setCustomId('previous')
+                                            .setCustomId(`previous_${uniqueId}`)
                                             .setLabel('⬅️')
                                             .setStyle(ButtonStyle.Primary)
                                             .setDisabled(currentPage === 1),
                                         new ButtonBuilder()
-                                            .setCustomId('next')
+                                            .setCustomId(`next_${uniqueId}`)
                                             .setLabel('➡️')
                                             .setStyle(ButtonStyle.Primary)
                                             .setDisabled(currentPage === totalPages)
