@@ -1332,7 +1332,10 @@ module.exports = {
                     const generateEmbed = (page) => {
                         const start = (page - 1) * tagsPerPage;
                         const end = start + tagsPerPage;
-                        const pageTags = stats.slice(start, end).map(tag => `${tag.count} : ${tag.percentage}% - \`${tag.tag}\``);
+                        const pageTags = stats.slice(start, end).map(tag => {
+                            const truncatedPercentage = tag.percentage.toFixed(2);
+                            return `**${tag.count}** : ${truncatedPercentage}% - \`${tag.tag}\``;
+                        });
 
                         return new EmbedBuilder()
                             .setColor('#6b048a')
