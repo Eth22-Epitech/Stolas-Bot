@@ -1260,8 +1260,8 @@ module.exports = {
         else if (interaction.options.getSubcommand() === 'stats_general') {
 
             if (!trusted_users.includes(interaction.user.id)) {
-                logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase stats_general' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT ADMIN`);
-                return interaction.reply({content: `You are not an Admin of Stolas Bot.`, ephemeral: true});
+                logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase stats_general' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT Trusted User`);
+                return interaction.reply({content: `You are not a Trusted User of Stolas Bot.`, ephemeral: true});
             }
 
             const command_url = `${henbase_url}/stats/general`;
@@ -1318,8 +1318,8 @@ module.exports = {
             const startPage = interaction.options.getInteger('page') || 1;
 
             if (!trusted_users.includes(interaction.user.id)) {
-                logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase stats_general' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT ADMIN`);
-                return interaction.reply({content: `You are not an Admin of Stolas Bot.`, ephemeral: true});
+                logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase stats_general' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT Trusted User`);
+                return interaction.reply({content: `You are not a Trusted User of Stolas Bot.`, ephemeral: true});
             }
 
             const command_url = `${henbase_url}/stats/tags`;
