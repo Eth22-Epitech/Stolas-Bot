@@ -234,6 +234,24 @@ module.exports = {
             return interaction.reply({content: 'This command can only be used in NSFW channels.', ephemeral: true});
         }
 
+        // Check if api is running
+        try {
+            const response = await fetch(`${henbase_url}/up`, {
+                method: 'GET',
+                headers: {
+                    'accept': 'application/json',
+                },
+            });
+
+            if (!response.ok) {
+                logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase' in '${interaction.guild.name} #${interaction.channel.name}' issued => API Not Running`);
+                return interaction.reply({content: 'Henbase API is not running.', ephemeral: true});
+            }
+        } catch (error) {
+            logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error whilst calling API`);
+            return interaction.reply({content: 'Error while calling Henbase API', ephemeral: true});
+        }
+
         // Create Database
         if (interaction.options.getSubcommand() === 'create_database') {
             if (!admin_users.includes(interaction.user.id)) {
@@ -613,7 +631,8 @@ module.exports = {
                 return interaction.reply({content: `${interaction.user.username} is not a Trusted User of Stolas Bot.`, ephemeral: true});
             }
 
-            await interaction.reply({ content: 'Fetching entry...'});
+            // Acknowledge the interaction
+            await interaction.deferReply();
 
             const entry = await getEntryData(now, interaction, entryId);
 
@@ -873,7 +892,8 @@ module.exports = {
 
         // Search Entries
         else if (interaction.options.getSubcommand() === 'search_entries') {
-            const tags = interaction.options.getString('tags', true).split(',').map(tag => tag.trim());
+            const tagsString = interaction.options.getString('tags');
+            const tags = tagsString ? tagsString.split(',').map(tag => tag.trim()) : [];
             const negative_tags = interaction.options.getString('negative_tags') ? interaction.options.getString('negative_tags').split(',').map(tag => tag.trim()) : [];
             const format = interaction.options.getString('format');
             const artist = interaction.options.getString('artist');
@@ -887,18 +907,11 @@ module.exports = {
             let command_url = `${henbase_url}/searchEntries?`;
 
             // Append tags
-            if (!tags) {
-                logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase search_entries' in '${interaction.guild.name} #${interaction.channel.name}' issued => No tag provided`);
-                return interaction.reply({ content: `At least one tag is expected.`, ephemeral: true });
-            }
             tags.forEach(tag => {
-                if (typeof tag !== 'string') {
-                    tag = String(tag);
-                }
                 command_url += `tags=${encodeURIComponent(tag)}&`;
             });
             // Append negative tags
-            if (negative_tags) {
+            if (negative_tags.length > 0) {
                 negative_tags.forEach(negative_tag => {
                     command_url += `negativeTags=${encodeURIComponent(negative_tag)}&`;
                 });
@@ -914,6 +927,9 @@ module.exports = {
             // Remove the trailing '&' or '?' if no parameters were added
             command_url = command_url.slice(0, -1);
 
+            // Acknowledge the interaction
+            await interaction.deferReply();
+
             try {
                 const response = await fetch(command_url, {
                     method: 'GET',
@@ -928,7 +944,7 @@ module.exports = {
                     const entryIds = responseData.entries ? responseData.entries.map(entry => entry[0]) : [];
 
                     if (entryIds.length === 0) {
-                        return interaction.reply({ content: `No entries found.`, ephemeral: true });
+                        return interaction.editReply({ content: `No entries found.`, ephemeral: true });
                     }
 
                     let currentIndex = 0;
@@ -957,7 +973,7 @@ module.exports = {
                                 .setDisabled(currentIndex === entryIds.length - 1)
                         );
 
-                    await interaction.reply({
+                    await interaction.editReply({
                         content: ``, components: [navigationRow]
                     });
                     await displayEntry(currentIndex, entryIds.length);
@@ -986,17 +1002,18 @@ module.exports = {
 
                 } else {
                     logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase search_entries' in '${interaction.guild.name} #${interaction.channel.name}' issued => Response Not OK`);
-                    return interaction.reply({ content: `Failed to search entries.: ${response.statusText}`, ephemeral: true });
+                    return interaction.editReply({ content: `Failed to search entries.: ${response.statusText}`, ephemeral: true });
                 }
             } catch (error) {
                 logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase search_entries' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
-                return interaction.reply({ content: `Error while searching entries.: ${error.message}`, ephemeral: true });
+                return interaction.editReply({ content: `Error while searching entries.: ${error.message}`, ephemeral: true });
             }
         }
 
         // Search Random Entry
         else if (interaction.options.getSubcommand() === 'search_random_entry') {
-            const tags = interaction.options.getString('tags', true).split(',').map(tag => tag.trim());
+            const tagsString = interaction.options.getString('tags');
+            const tags = tagsString ? tagsString.split(',').map(tag => tag.trim()) : [];
             const negative_tags = interaction.options.getString('negative_tags') ? interaction.options.getString('negative_tags').split(',').map(tag => tag.trim()) : [];
             const format = interaction.options.getString('format');
             const artist = interaction.options.getString('artist');
@@ -1039,8 +1056,8 @@ module.exports = {
 
             const row = new ActionRowBuilder().addComponents(rerollButton);
 
-            // Initial reply with loading message and reroll button
-            await interaction.reply({ content: 'Fetching entry...', components: [row] });
+            // Acknowledge the interaction
+            await interaction.deferReply();
 
             const fetchAndDisplayEntry = async () => {
                 try {
@@ -1241,7 +1258,8 @@ module.exports = {
 
         // Stats general
         else if (interaction.options.getSubcommand() === 'stats_general') {
-            if (!admin_users.includes(interaction.user.id)) {
+
+            if (!trusted_users.includes(interaction.user.id)) {
                 logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase stats_general' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT ADMIN`);
                 return interaction.reply({content: `You are not an Admin of Stolas Bot.`, ephemeral: true});
             }
@@ -1299,7 +1317,7 @@ module.exports = {
         else if (interaction.options.getSubcommand() === 'stats_tags') {
             const startPage = interaction.options.getInteger('page') || 1;
 
-            if (!admin_users.includes(interaction.user.id)) {
+            if (!trusted_users.includes(interaction.user.id)) {
                 logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase stats_general' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT ADMIN`);
                 return interaction.reply({content: `You are not an Admin of Stolas Bot.`, ephemeral: true});
             }
