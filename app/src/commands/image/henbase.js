@@ -1440,7 +1440,7 @@ module.exports = {
                 return interaction.reply({content: `You are not a Trusted User of Stolas Bot.`, ephemeral: true});
             }
 
-            const command_url = `http://0.0.0.0:8080/stats/artists`;
+            const command_url = `${henbase_url}/stats/artists`;
 
             try {
                 const response = await fetch(command_url, {
