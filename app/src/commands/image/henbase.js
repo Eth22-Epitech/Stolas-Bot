@@ -587,10 +587,10 @@ module.exports = {
             let command_url = `${henbase_url}/addEntry?name=${encodeURIComponent(name)}`;
             if (artist) { command_url += `&artist=${encodeURIComponent(artist)}`; }
 
-            try {
-                // Initial reply with processing message
-                await interaction.reply({ content: 'Processing entry...' });
+            // Acknowledge the interaction
+            await interaction.deferReply();
 
+            try {
                 const formData = new FormData();
                 formData.append('tags', tags.join(','));
                 formData.append('file', new Blob([await fetch(file.url).then(res => res.arrayBuffer())], { type: file.contentType }), file.name);
@@ -906,15 +906,13 @@ module.exports = {
             // Construct the URL
             let command_url = `${henbase_url}/searchEntries?`;
 
-            // Append tags
-            tags.forEach(tag => {
-                command_url += `tags=${encodeURIComponent(tag)}&`;
-            });
+            // Append tags as a comma-separated string
+            if (tags.length > 0) {
+                command_url += `tags=${encodeURIComponent(tags.join(','))}&`;
+            }
             // Append negative tags
             if (negative_tags.length > 0) {
-                negative_tags.forEach(negative_tag => {
-                    command_url += `negativeTags=${encodeURIComponent(negative_tag)}&`;
-                });
+                command_url += `negativeTags=${encodeURIComponent(negative_tags.join(','))}&`;
             }
             // Append format if provided
             if (format) {
@@ -952,6 +950,7 @@ module.exports = {
 
                     const displayEntry = async (index, maxIndex) => {
                         const entry = await getEntryData(now, interaction, entryIds[index], index, maxIndex);
+                        logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase search_entries' in '${interaction.guild.name} #${interaction.channel.name}' issued => Entry ${entryIds[index]}`);
                         if (entry) {
                             await interaction.editReply({ embeds: [entry.embed], files: [entry.attachment], components: [navigationRow] });
                         } else {
@@ -1026,15 +1025,13 @@ module.exports = {
             // Construct the URL
             let command_url = `${henbase_url}/searchEntries/random?`;
 
-            // Append tags
-            tags.forEach(tag => {
-                command_url += `tags=${encodeURIComponent(tag)}&`;
-            });
-            // Append negative tags
+            // Append tags as a comma-separated string
+            if (tags.length > 0) {
+                command_url += `tags=${encodeURIComponent(tags.join(','))}&`;
+            }
+            // Append negative tags as a comma-separated string
             if (negative_tags.length > 0) {
-                negative_tags.forEach(negative_tag => {
-                    command_url += `negativeTags=${encodeURIComponent(negative_tag)}&`;
-                });
+                command_url += `negativeTags=${encodeURIComponent(negative_tags.join(','))}&`;
             }
             // Append format if provided
             if (format) {
