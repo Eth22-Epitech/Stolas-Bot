@@ -223,6 +223,11 @@ module.exports = {
             subcommand
                 .setName('stats_tags')
                 .setDescription('(Trusted User) Give tags information about the database such as amount of entries and percentages')
+                .addIntegerOption(option => option.setName('page').setDescription('Page to start displaying the stats')))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('stats_artists')
+                .setDescription('(Trusted User) Give artists information about the database such as amount of entries and percentages')
                 .addIntegerOption(option => option.setName('page').setDescription('Page to start displaying the stats'))),
 
     async execute(interaction) {
@@ -1423,6 +1428,122 @@ module.exports = {
             } catch (error) {
                 logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase stats_tags' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
                 return interaction.reply({ content: `Error while fetching tags stats: ${error.message}`, ephemeral: true });
+            }
+        }
+
+        // Stats artists
+        else if (interaction.options.getSubcommand() === 'stats_artists') {
+            const startPage = interaction.options.getInteger('page') || 1;
+
+            if (!trusted_users.includes(interaction.user.id)) {
+                logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase stats_artists' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT Trusted User`);
+                return interaction.reply({content: `You are not a Trusted User of Stolas Bot.`, ephemeral: true});
+            }
+
+            const command_url = `http://0.0.0.0:8080/stats/artists`;
+
+            try {
+                const response = await fetch(command_url, {
+                    method: 'GET',
+                    headers: {
+                        'accept': 'application/json',
+                        'api-key': henbase_key,
+                    },
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const stats = data.stats.sort((a, b) => b.count - a.count);
+                    const artistsPerPage = 10;
+                    const totalPages = Math.ceil(stats.length / artistsPerPage);
+                    const uniqueId = uuidv4(); // Generate a unique identifier
+
+                    if (startPage < 1 || startPage > totalPages) {
+                        return interaction.reply({ content: `Invalid page number. Please enter a number between 1 and ${totalPages}.`, ephemeral: true });
+                    }
+
+                    const generateEmbed = (page) => {
+                        const start = (page - 1) * artistsPerPage;
+                        const end = start + artistsPerPage;
+                        const pageArtists = stats.slice(start, end).map(artist => {
+                            const truncatedPercentage = artist.percentage.toFixed(2);
+                            return `**${artist.count}** : ${truncatedPercentage}% - \`${artist.artist || 'Unknown Artist'}\``;
+                        });
+
+                        return new EmbedBuilder()
+                            .setColor('#6b048a')
+                            .setAuthor({
+                                name: 'Stolas Bot by Eth22',
+                                iconURL: interaction.client.user.displayAvatarURL(),
+                                url: 'https://eth22.fr'
+                            })
+                            .setTitle('Henbase Artists Stats')
+                            .setDescription(pageArtists.join('\n'))
+                            .setFooter({text: `${now}`, iconURL: interaction.client.user.displayAvatarURL()})
+                            .addFields({name: `Page ${page} of ${totalPages}`, value: '\u200B', inline: true});
+                    };
+
+                    const row = new ActionRowBuilder()
+                        .addComponents(
+                            new ButtonBuilder()
+                                .setCustomId(`previous_${uniqueId}`)
+                                .setLabel('⬅️')
+                                .setStyle(ButtonStyle.Primary)
+                                .setDisabled(startPage === 1),
+                            new ButtonBuilder()
+                                .setCustomId(`next_${uniqueId}`)
+                                .setLabel('➡️')
+                                .setStyle(ButtonStyle.Primary)
+                                .setDisabled(startPage === totalPages)
+                        );
+
+                    logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase stats_artists' in '${interaction.guild.name} #${interaction.channel.name}' issued => Page ${startPage}`);
+                    await interaction.reply({ embeds: [generateEmbed(startPage)], components: [row] });
+
+                    const filter = i => (i.customId === `previous_${uniqueId}` || i.customId === `next_${uniqueId}`) && i.user.id === interaction.user.id;
+                    const collector = interaction.channel.createMessageComponentCollector({ filter, time: 120000 });
+
+                    let currentPage = startPage;
+
+                    collector.on('collect', async i => {
+                        if (i.customId === `previous_${uniqueId}`) {
+                            currentPage--;
+                        } else if (i.customId === `next_${uniqueId}`) {
+                            currentPage++;
+                        }
+
+                        logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase stats_artists' in '${interaction.guild.name} #${interaction.channel.name}' issued => Page ${currentPage}`);
+                        await i.update({
+                            embeds: [generateEmbed(currentPage)],
+                            components: [
+                                new ActionRowBuilder()
+                                    .addComponents(
+                                        new ButtonBuilder()
+                                            .setCustomId(`previous_${uniqueId}`)
+                                            .setLabel('⬅️')
+                                            .setStyle(ButtonStyle.Primary)
+                                            .setDisabled(currentPage === 1),
+                                        new ButtonBuilder()
+                                            .setCustomId(`next_${uniqueId}`)
+                                            .setLabel('➡️')
+                                            .setStyle(ButtonStyle.Primary)
+                                            .setDisabled(currentPage === totalPages)
+                                    )
+                            ]
+                        });
+                    });
+
+                    collector.on('end', collected => {
+                        interaction.editReply({ components: [] });
+                    });
+                } else {
+                    const errorText = await response.text();
+                    logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase stats_artists' in '${interaction.guild.name} #${interaction.channel.name}' issued => Response Not OK: ${errorText}`);
+                    return interaction.reply({ content: `Failed to fetch artists stats: ${response.statusText}`, ephemeral: true });
+                }
+            } catch (error) {
+                logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase stats_artists' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
+                return interaction.reply({ content: `Error while fetching artists stats: ${error.message}`, ephemeral: true });
             }
         }
 
