@@ -94,6 +94,10 @@ async function getEntryData(now, interaction, entryId, current_index = -1, max_i
                     embed.setImage('attachment://entry_image.png');
                 }  else if (entryData.format === 'gif') {
                     embed.setImage('attachment://entry_image.gif');
+                } else if (entryData.format === 'video') {
+                    embed.addFields(
+                        { name: 'Video: Check the attachment.', value: '' }
+                    );
                 }
             }
 
@@ -210,6 +214,10 @@ module.exports = {
                     { name: 'Video', value: 'video' }
                 ))
                 .addStringOption(option => option.setName('artist').setDescription('Artist of the entry')))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('search_entries_unknown_artist')
+                .setDescription('(Trusted User) Search the database for entries with no artist fields'))
         .addSubcommand(subcommand =>
             subcommand
                 .setName('search_tags')
@@ -1140,6 +1148,100 @@ module.exports = {
             };
 
             fetchAndDisplayEntry();
+        }
+
+        // Search Entries Unknown Artist
+        else if (interaction.options.getSubcommand() === 'search_entries_unknown_artist') {
+
+            if (!trusted_users.includes(interaction.user.id)) {
+                logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase search_entries_unknown_artist' in '${interaction.guild.name} #${interaction.channel.name}' issued => NOT Trusted User`);
+                return interaction.reply({content: `${interaction.user.username} is not a Trusted User of Stolas Bot.`, ephemeral: true});
+            }
+
+            // Acknowledge the interaction
+            await interaction.deferReply();
+
+            const command_url = `${henbase_url}/searchEntries/unknownArtist`;
+
+            try {
+                const response = await fetch(command_url, {
+                    method: 'GET',
+                    headers: {
+                        'accept': 'application/json',
+                        'api-key': henbase_key,
+                    },
+                });
+
+                if (response.ok) {
+                    const responseData = await response.json();
+                    const entryIds = responseData.entries ? responseData.entries.map(entry => entry.id) : [];
+
+                    if (entryIds.length === 0) {
+                        return interaction.editReply({ content: `No entries found.`, ephemeral: true });
+                    }
+
+                    let currentIndex = 0;
+                    const uniqueId = uuidv4(); // Generate a unique identifier
+
+                    const displayEntry = async (index, maxIndex) => {
+                        const entry = await getEntryData(now, interaction, entryIds[index], index, maxIndex);
+                        logger.log('info', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase search_entries_unknown_artist' in '${interaction.guild.name} #${interaction.channel.name}' issued => Entry ${entryIds[index]}`);
+                        if (entry) {
+                            await interaction.editReply({ embeds: [entry.embed], files: [entry.attachment], components: [navigationRow] });
+                        } else {
+                            await interaction.editReply({ content: `Failed to get entry \`${entryIds[index]}\`.`, ephemeral: true });
+                        }
+                    };
+
+                    const navigationRow = new ActionRowBuilder()
+                        .addComponents(
+                            new ButtonBuilder()
+                                .setCustomId(`prev_${uniqueId}`)
+                                .setLabel('⬅️')
+                                .setStyle(ButtonStyle.Primary)
+                                .setDisabled(currentIndex === 0),
+                            new ButtonBuilder()
+                                .setCustomId(`next_${uniqueId}`)
+                                .setLabel('➡️')
+                                .setStyle(ButtonStyle.Primary)
+                                .setDisabled(currentIndex === entryIds.length - 1)
+                        );
+
+                    await interaction.editReply({
+                        content: ``, components: [navigationRow]
+                    });
+                    await displayEntry(currentIndex, entryIds.length);
+
+                    const filter = i => (i.customId === `prev_${uniqueId}` || i.customId === `next_${uniqueId}`) && i.user.id === interaction.user.id;
+                    const collector = interaction.channel.createMessageComponentCollector({ filter, time: 120000 });
+
+                    collector.on('collect', async i => {
+                        if (i.customId === `prev_${uniqueId}` && currentIndex > 0) {
+                            currentIndex--;
+                        } else if (i.customId === `next_${uniqueId}` && currentIndex < entryIds.length - 1) {
+                            currentIndex++;
+                        }
+
+                        navigationRow.components[0].setDisabled(currentIndex === 0);
+                        navigationRow.components[1].setDisabled(currentIndex === entryIds.length - 1);
+
+                        await i.update({ components: [navigationRow] });
+                        await displayEntry(currentIndex, entryIds.length);
+                    });
+
+                    collector.on('end', async () => {
+                        navigationRow.components.forEach(button => button.setDisabled(true));
+                        await interaction.editReply({ components: [navigationRow] });
+                    });
+
+                } else {
+                    logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase search_entries_unknown_artist' in '${interaction.guild.name} #${interaction.channel.name}' issued => Response Not OK`);
+                    return interaction.editReply({ content: `Failed to search entries: ${response.statusText}`, ephemeral: true });
+                }
+            } catch (error) {
+                logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase search_entries_unknown_artist' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
+                return interaction.editReply({ content: `Error while searching entries: ${error.message}`, ephemeral: true });
+            }
         }
 
         // Search Tags
