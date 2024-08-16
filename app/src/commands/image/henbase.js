@@ -94,10 +94,6 @@ async function getEntryData(now, interaction, entryId, current_index = -1, max_i
                     embed.setImage('attachment://entry_image.png');
                 }  else if (entryData.format === 'gif') {
                     embed.setImage('attachment://entry_image.gif');
-                } else if (entryData.format === 'video') {
-                    embed.addFields(
-                        { name: 'Video: Check the attachment.', value: '' }
-                    );
                 }
             }
 
