@@ -20,8 +20,8 @@ async function formatSize(size) {
 
 // Function to get an entry's data and file from its id
 async function getEntryData(now, interaction, entryId, current_index = -1, max_index = -1) {
-    const command_url = `${henbase_url}/getEntry?entryId=${entryId}`;
-    const content_url = `${henbase_url}/content/${entryId}`;
+    const command_url = `${henbase_url}/entry/get?entryId=${entryId}`;
+    const content_url = `${henbase_url}/search/entry/content/${entryId}`;
 
     try {
         const response = await fetch(command_url, {
@@ -102,7 +102,7 @@ async function getEntryData(now, interaction, entryId, current_index = -1, max_i
             return null;
         }
     } catch (error) {
-        logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase /content/${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
+        logger.log('error', `${now} - ${interaction.user.username} (${interaction.user.id}) '/henbase /search/entry/content/${entryId}' in '${interaction.guild.name} #${interaction.channel.name}' issued => Error: ${error.message}`);
         return null
     }
 }
@@ -245,7 +245,7 @@ module.exports = {
 
         // Check if api is running
         try {
-            const response = await fetch(`${henbase_url}/up`, {
+            const response = await fetch(`${henbase_url}/info/up`, {
                 method: 'GET',
                 headers: {
                     'accept': 'application/json',
@@ -268,7 +268,7 @@ module.exports = {
                 return interaction.reply({content: `You are not an Admin of Stolas Bot.`, ephemeral: true});
             }
 
-            const command_url = `${henbase_url}/createDb`;
+            const command_url = `${henbase_url}/database/create`;
 
             try {
                 const response = await fetch(command_url, {
@@ -299,11 +299,11 @@ module.exports = {
                 return interaction.reply({content: `You are not an Admin of Stolas Bot.`, ephemeral: true});
             }
 
-            const command_url = `${henbase_url}/purgeDb/entry`;
+            const command_url = `${henbase_url}/database/purge/entry`;
 
             try {
                 const response = await fetch(command_url, {
-                    method: 'POST',
+                    method: 'DELETE',
                     headers: {
                         'accept': 'application/json',
                         'admin-key': henbase_admin_key,
@@ -330,11 +330,11 @@ module.exports = {
                 return interaction.reply({content: `You are not an Admin of Stolas Bot.`, ephemeral: true});
             }
 
-            const command_url = `${henbase_url}/purgeDb/tag`;
+            const command_url = `${henbase_url}/database/purge/tag`;
 
             try {
                 const response = await fetch(command_url, {
-                    method: 'POST',
+                    method: 'DELETE',
                     headers: {
                         'accept': 'application/json',
                         'admin-key': henbase_admin_key,
@@ -361,11 +361,11 @@ module.exports = {
                 return interaction.reply({content: `You are not an Admin of Stolas Bot.`, ephemeral: true});
             }
 
-            const command_url = `${henbase_url}/purgeDb/tmp`;
+            const command_url = `${henbase_url}/database/purge/tmp`;
 
             try {
                 const response = await fetch(command_url, {
-                    method: 'POST',
+                    method: 'DELETE',
                     headers: {
                         'accept': 'application/json',
                         'admin-key': henbase_admin_key,
@@ -394,7 +394,7 @@ module.exports = {
                 return interaction.reply({content: `You are not an Admin of Stolas Bot.`, ephemeral: true});
             }
 
-            const command_url = `${henbase_url}/addTag?tag=${encodeURIComponent(tag)}`;
+            const command_url = `${henbase_url}/tag/add?tag=${encodeURIComponent(tag)}`;
 
             try {
                 const response = await fetch(command_url, {
@@ -427,11 +427,11 @@ module.exports = {
                 return interaction.reply({content: `You are not an Admin of Stolas Bot.`, ephemeral: true});
             }
 
-            const command_url = `${henbase_url}/removeTag?tag=${encodeURIComponent(tag)}`;
+            const command_url = `${henbase_url}/tag/remove?tag=${encodeURIComponent(tag)}`;
 
             try {
                 const response = await fetch(command_url, {
-                    method: 'POST',
+                    method: 'DELETE',
                     headers: {
                         'accept': 'application/json',
                         'admin-key': henbase_admin_key,
@@ -461,11 +461,11 @@ module.exports = {
                 return interaction.reply({content: `You are not an Admin of Stolas Bot.`, ephemeral: true});
             }
 
-            const command_url = `${henbase_url}/editTag?oldTag=${encodeURIComponent(old_tag)}&newTag=${encodeURIComponent(new_tag)}`;
+            const command_url = `${henbase_url}/tag/edit?oldTag=${encodeURIComponent(old_tag)}&newTag=${encodeURIComponent(new_tag)}`;
 
             try {
                 const response = await fetch(command_url, {
-                    method: 'POST',
+                    method: 'PUT',
                     headers: {
                         'accept': 'application/json',
                         'admin-key': henbase_admin_key,
@@ -493,7 +493,7 @@ module.exports = {
                 return interaction.reply({content: `You are not a Trusted User of Stolas Bot.`, ephemeral: true});
             }
 
-            const command_url = `${henbase_url}/listTags`;
+            const command_url = `${henbase_url}/tag/list`;
 
             try {
                 const response = await fetch(command_url, {
@@ -593,7 +593,7 @@ module.exports = {
                 return interaction.reply({content: `You are not an Admin of Stolas Bot.`, ephemeral: true});
             }
 
-            let command_url = `${henbase_url}/addEntry?name=${encodeURIComponent(name)}`;
+            let command_url = `${henbase_url}/entry/add?name=${encodeURIComponent(name)}`;
             if (artist) { command_url += `&artist=${encodeURIComponent(artist)}`; }
 
             // Acknowledge the interaction
@@ -663,11 +663,11 @@ module.exports = {
                 return interaction.reply({content: `You are not an Admin of Stolas Bot.`, ephemeral: true});
             }
 
-            const command_url = `${henbase_url}/removeEntry?entryId=${entryId}`;
+            const command_url = `${henbase_url}/entry/remove?entryId=${entryId}`;
 
             try {
                 const response = await fetch(command_url, {
-                    method: 'POST',
+                    method: 'DELETE',
                     headers: {
                         'accept': 'application/json',
                         'admin-key': henbase_admin_key,
@@ -703,7 +703,7 @@ module.exports = {
                 return interaction.reply({ content: `No parameters provided to edit entry \`${entryId}\`.`, ephemeral: true });
             }
 
-            let command_url = `${henbase_url}/editEntry?entryId=${entryId}`;
+            let command_url = `${henbase_url}/entry/edit?entryId=${entryId}`;
             if (new_name) {
                 command_url += `&name=${encodeURIComponent(new_name)}`;
             }
@@ -718,7 +718,7 @@ module.exports = {
 
             try {
                 const response = await fetch(command_url, {
-                    method: 'POST',
+                    method: 'PUT',
                     headers: {
                         'accept': 'application/json',
                         'admin-key': henbase_admin_key,
@@ -749,7 +749,7 @@ module.exports = {
                 return interaction.reply({content: `You are not a Trusted User of Stolas Bot.`, ephemeral: true});
             }
 
-            const command_url = `${henbase_url}/listEntries`;
+            const command_url = `${henbase_url}/search/entry/list`;
 
             try {
                 const response = await fetch(command_url, {
@@ -851,7 +851,7 @@ module.exports = {
                 return interaction.reply({content: `${interaction.user.username} is not an Admin of Stolas Bot.`, ephemeral: true});
             }
 
-            const getEntryUrl = `${henbase_url}/getEntry?entryId=${entryId}`;
+            const getEntryUrl = `${henbase_url}/entry/get?entryId=${entryId}`;
 
             try {
                 // Fetch the entry data
@@ -870,14 +870,14 @@ module.exports = {
                 const entryData = await entryResponse.json();
                 const currentTags = entryData.entry.tags || [];
 
-                const editEntryUrl = `${henbase_url}/editEntry?entryId=${entryId}&name=${encodeURIComponent(entryData.entry.name)}`;
+                const editEntryUrl = `${henbase_url}/entry/edit?entryId=${entryId}&name=${encodeURIComponent(entryData.entry.name)}`;
 
                 // Add new tags without duplicates
                 const updatedTags = [...new Set([...currentTags, ...tags])];
 
                 // Update the entry with the new tag list
                 const editResponse = await fetch(editEntryUrl, {
-                    method: 'POST',
+                    method: 'PUT',
                     headers: {
                         'accept': 'application/json',
                         'admin-key': henbase_admin_key,
@@ -913,7 +913,7 @@ module.exports = {
             }
 
             // Construct the URL
-            let command_url = `${henbase_url}/searchEntries?`;
+            let command_url = `${henbase_url}/search/entry?`;
 
             // Append tags as a comma-separated string
             if (tags.length > 0) {
@@ -1032,7 +1032,7 @@ module.exports = {
             }
 
             // Construct the URL
-            let command_url = `${henbase_url}/searchEntries/random?`;
+            let command_url = `${henbase_url}/search/entry/random?`;
 
             // Append tags as a comma-separated string
             if (tags.length > 0) {
@@ -1157,7 +1157,7 @@ module.exports = {
             // Acknowledge the interaction
             await interaction.deferReply();
 
-            const command_url = `${henbase_url}/searchEntries/unknownArtist`;
+            const command_url = `${henbase_url}/search/entry/unknownArtist`;
 
             try {
                 const response = await fetch(command_url, {
@@ -1249,7 +1249,7 @@ module.exports = {
                 return interaction.reply({content: `${interaction.user.username} is not a Trusted User of Stolas Bot.`, ephemeral: true});
             }
 
-            const searchTagsUrl = `${henbase_url}/searchTags?prefix=${encodeURIComponent(searchPrefix)}`;
+            const searchTagsUrl = `${henbase_url}/search/tag?prefix=${encodeURIComponent(searchPrefix)}`;
 
             try {
                 // Fetch the tags matching the search prefix
